@@ -19,6 +19,10 @@ protected:
         top->clk = 1;
         top->eval();
     }
+
+    void waitCycles(int n) {
+        for (int i = 0; i < n; ++i) toggleClock();
+    }
 };
 
 TEST_F(DataMemTestbench, WriteAndReadBack) {
@@ -44,7 +48,7 @@ TEST_F(DataMemTestbench, WriteAndReadBack) {
         uint32_t addr = base_addr + i * 4;
 
         top->A = addr;
-        top->eval();
+        toggleClock();  // wait for data to be output (BRAM latency)
 
         uint32_t rd = top->RD;
 
