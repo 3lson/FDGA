@@ -1,1 +1,8 @@
 .DS_Store
+bin/
+build/
+rtl/
+tb/
+assembler/
+kmeans_pixels.txt
+kmeans.png
