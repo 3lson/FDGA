@@ -8,12 +8,17 @@ module data_mem #(
     input  logic                    WDME,
     input  logic [ADDR_WIDTH-1:0]   A, // full address
     input  logic [DATA_WIDTH-1:0]   WD, // write data
-    output logic [DATA_WIDTH-1:0]   RD  // read data
+    output logic [DATA_WIDTH-1:0]   RD,  // read data
+
+    // AXI I/O access
+    input logic [ADDR_WIDTH-1:0] axi_A, // address
+    output logic [DATA_WIDTH-1:0] axi_RD // read data
 );
 
     logic [31:0] addr;
     logic [MEM_WIDTH-1:0] array [2**ADDR_REAL_WIDTH-1:0];
     logic [DATA_WIDTH-1:0] temp;
+    logic [DATA_WIDTH-1:0] axi_temp;
 
     assign addr = $unsigned(A);
 
@@ -28,6 +33,7 @@ module data_mem #(
     // Load instruction
     always_comb begin
         temp = {array[addr+3], array[addr+2], array[addr+1], array[addr]};
+        axi_temp = {array[axi_A+3], array[axi_A+2], array[axi_A+1], array[axi_A]};
     end
 
     // Store instruction
@@ -41,5 +47,6 @@ module data_mem #(
     end
 
     assign RD = temp;
+    assign axi_RD = axi_temp;
 
 endmodule
