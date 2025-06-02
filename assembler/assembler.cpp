@@ -457,13 +457,14 @@ int main() {
     cout << "\nData section:" << endl;
     for (auto& [addr, value] : data) {
 
-        dataOut << hex << setw(2) << setfill('0') << (value & 0xFF) << endl;
-        dataOut << hex << setw(2) << setfill('0') << ((value >> 8) & 0xFF) << endl;
-        dataOut << hex << setw(2) << setfill('0') << ((value >> 16) & 0xFF) << endl;
-        dataOut << hex << setw(2) << setfill('0') << ((value >> 24) & 0xFF) << endl;
+        // dataOut << hex << setw(2) << setfill('0') << (value & 0xFF) << endl;
+        // dataOut << hex << setw(2) << setfill('0') << ((value >> 8) & 0xFF) << endl;
+        // dataOut << hex << setw(2) << setfill('0') << ((value >> 16) & 0xFF) << endl;
+        // dataOut << hex << setw(2) << setfill('0') << ((value >> 24) & 0xFF) << endl;
 
-        // cout << "0x" << hex << addr << ": 0x" << value << dec << endl;
-        // dataOut << hex << setw(8) << setfill('0') << value << endl;
+        //cout << "0x" << hex << addr << ": 0x" << value << dec << endl;
+        // Changed to 32-bit read to data.hex now
+        dataOut << hex << setw(8) << setfill('0') << value << endl;
     }
 
     input.close();
