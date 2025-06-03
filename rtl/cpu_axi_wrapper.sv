@@ -64,15 +64,64 @@ module cpu_axi_wrapper (
     );
 
     // Read channel responses
-    assign s_axi_arready = 1'b1;
-    assign s_axi_rvalid  = s_axi_arvalid;
+    logic read_valid;
+    logic [31:0] read_addr_reg;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            s_axi_rvalid <= 1'b0;
+            read_valid <= 1'b0;
+            read_addr_reg <= 32'h0;
+        end else begin
+            if (s_axi_arvalid && !s_axi_rvalid) begin
+                read_addr_reg <= s_axi_araddr;
+                s_axi_rvalid <= 1'b1;
+                read_valid <= 1'b1;
+            end else if (s_axi_rvalid && s_axi_rready) begin
+                s_axi_rvalid <= 1'b0;
+                read_valid <= 1'b0;
+            end
+        end
+    end
+
+    assign axi_addr = read_addr_reg;
+    assign s_axi_arready = !read_valid;
     assign s_axi_rdata   = axi_rdata;
-    assign s_axi_rresp   = 2'b00;  // OKAY response
+    assign s_axi_rresp   = 2'b00;
+
 
     // Write channel responses
-    assign s_axi_awready = 1'b1;
-    assign s_axi_wready  = 1'b1;
-    assign s_axi_bvalid  = s_axi_awvalid & s_axi_wvalid;
-    assign s_axi_bresp   = 2'b00;  // OKAY response
+    logic [31:0] write_addr_reg;
+    logic [31:0] write_data_reg;
+    logic        write_pending;
+
+    // Write Address Latching
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            write_addr_reg <= 32'h0;
+            write_data_reg <= 32'h0;
+            write_pending  <= 1'b0;
+            s_axi_bvalid   <= 1'b0;
+        end else begin
+            if (s_axi_awvalid && s_axi_wvalid && !write_pending) begin
+                write_addr_reg <= s_axi_awaddr;
+                write_data_reg <= s_axi_wdata;
+                write_pending  <= 1'b1;
+                s_axi_bvalid   <= 1'b1;  // Response valid
+            end else if (s_axi_bvalid && s_axi_bready) begin
+                s_axi_bvalid  <= 1'b0;
+                write_pending <= 1'b0;
+            end
+        end
+    end
+
+    assign axi_addr      = write_addr_reg;
+    assign axi_wdata     = write_data_reg;
+    assign axi_write_en  = write_pending;
+
+    assign s_axi_awready = !write_pending;
+    assign s_axi_wready  = !write_pending;
+    assign s_axi_bresp   = 2'b00;  // OKAY
+
 
 endmodule
