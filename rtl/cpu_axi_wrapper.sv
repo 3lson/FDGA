@@ -10,7 +10,7 @@ module cpu_axi_wrapper (
     output logic [1:0]  s_axi_rresp,
     output logic        s_axi_rvalid,
     input  logic        s_axi_rready,
-    
+
     // AXI-Lite slave interface - WRITE CHANNELS
     input  logic [31:0] s_axi_awaddr,
     input  logic        s_axi_awvalid,
@@ -24,11 +24,11 @@ module cpu_axi_wrapper (
     input  logic        s_axi_bready
 );
 
-    // Invert reset for active-high inside core
+    // Internal reset
     logic rst;
     assign rst = ~rst_n;
 
-    // Output wire (for debugging)
+    // Output from CPU for debugging
     logic [31:0] a0;
 
     // Instantiate CPU core
@@ -38,90 +38,84 @@ module cpu_axi_wrapper (
         .a0(a0)
     );
 
-    // AXI signals
+    // Internal AXI <-> memory interface
     logic [31:0] axi_addr;
     logic [31:0] axi_rdata;
     logic [31:0] axi_wdata;
     logic        axi_write_en;
 
-    // Read transaction handling
-    assign axi_addr = s_axi_arvalid ? s_axi_araddr : s_axi_awaddr;
-    
-    // Write transaction handling
-    assign axi_wdata = s_axi_wdata;
-    assign axi_write_en = s_axi_awvalid & s_axi_wvalid;
+    // -------------------- AXI READ FSM --------------------
 
-    // Access shared port from data_mem
-    data_mem data_memory (
-        .clk(clk),
-        .WDME(axi_write_en),           // Enable write when AXI write transaction
-        .A(axi_addr),                  // Address from AXI (read or write)
-        .WD(axi_wdata),                // Write data from AXI
-        .RD(),                         // CPU read data (not used here)
-
-        .axi_A(axi_addr),              // AXI address
-        .axi_RD(axi_rdata)             // AXI read data
-    );
-
-    // Read channel responses
-    logic read_valid;
+    logic        read_valid;
     logic [31:0] read_addr_reg;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            s_axi_rvalid <= 1'b0;
-            read_valid <= 1'b0;
-            read_addr_reg <= 32'h0;
+            read_valid     <= 1'b0;
+            read_addr_reg  <= 32'h0;
+            s_axi_rvalid   <= 1'b0;
         end else begin
-            if (s_axi_arvalid && !s_axi_rvalid) begin
+            if (s_axi_arvalid && !read_valid) begin
                 read_addr_reg <= s_axi_araddr;
-                s_axi_rvalid <= 1'b1;
-                read_valid <= 1'b1;
+                read_valid    <= 1'b1;
+                s_axi_rvalid  <= 1'b1;
             end else if (s_axi_rvalid && s_axi_rready) begin
                 s_axi_rvalid <= 1'b0;
-                read_valid <= 1'b0;
+                read_valid   <= 1'b0;
             end
         end
     end
 
-    assign axi_addr = read_addr_reg;
     assign s_axi_arready = !read_valid;
     assign s_axi_rdata   = axi_rdata;
     assign s_axi_rresp   = 2'b00;
 
+    // -------------------- AXI WRITE FSM --------------------
 
-    // Write channel responses
+    logic        write_pending;
     logic [31:0] write_addr_reg;
     logic [31:0] write_data_reg;
-    logic        write_pending;
 
-    // Write Address Latching
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            write_addr_reg <= 32'h0;
-            write_data_reg <= 32'h0;
-            write_pending  <= 1'b0;
-            s_axi_bvalid   <= 1'b0;
+            write_pending   <= 1'b0;
+            write_addr_reg  <= 32'h0;
+            write_data_reg  <= 32'h0;
+            s_axi_bvalid    <= 1'b0;
         end else begin
             if (s_axi_awvalid && s_axi_wvalid && !write_pending) begin
                 write_addr_reg <= s_axi_awaddr;
                 write_data_reg <= s_axi_wdata;
                 write_pending  <= 1'b1;
-                s_axi_bvalid   <= 1'b1;  // Response valid
+                s_axi_bvalid   <= 1'b1;
             end else if (s_axi_bvalid && s_axi_bready) begin
-                s_axi_bvalid  <= 1'b0;
                 write_pending <= 1'b0;
+                s_axi_bvalid  <= 1'b0;
             end
         end
     end
 
-    assign axi_addr      = write_addr_reg;
-    assign axi_wdata     = write_data_reg;
-    assign axi_write_en  = write_pending;
-
     assign s_axi_awready = !write_pending;
     assign s_axi_wready  = !write_pending;
-    assign s_axi_bresp   = 2'b00;  // OKAY
+    assign s_axi_bresp   = 2'b00;
 
+    // -------------------- AXI-to-Memory Wiring --------------------
+
+    assign axi_write_en = write_pending;
+    assign axi_wdata    = write_data_reg;
+    assign axi_addr     = read_valid ? read_addr_reg : write_addr_reg;
+
+    // -------------------- Memory Instance --------------------
+
+    data_mem data_memory (
+        .clk(clk),
+        .WDME(axi_write_en),      // Write enable
+        .A(axi_addr),             // Address (shared for read/write)
+        .WD(axi_wdata),           // Write data
+        .RD(),                    // CPU internal read (unused here)
+
+        .axi_A(axi_addr),         // AXI read address
+        .axi_RD(axi_rdata)        // AXI read data
+    );
 
 endmodule
