@@ -444,13 +444,13 @@ int main() {
             continue;
         }
 
-        instrOut << hex << setw(2) << setfill('0') << (instr & 0xFF) << endl;
-        instrOut << hex << setw(2) << setfill('0') << ((instr >> 8) & 0xFF) << endl;
-        instrOut << hex << setw(2) << setfill('0') << ((instr >> 16) & 0xFF) << endl;
-        instrOut << hex << setw(2) << setfill('0') << ((instr >> 24) & 0xFF) << endl;
+        // instrOut << hex << setw(2) << setfill('0') << (instr & 0xFF) << endl;
+        // instrOut << hex << setw(2) << setfill('0') << ((instr >> 8) & 0xFF) << endl;
+        // instrOut << hex << setw(2) << setfill('0') << ((instr >> 16) & 0xFF) << endl;
+        // instrOut << hex << setw(2) << setfill('0') << ((instr >> 24) & 0xFF) << endl;
 
-        // cout << "0x" << hex << instr << dec << endl;
-        // instrOut << hex << setw(8) << setfill('0') << instr << endl;
+        //cout << "0x" << hex << instr << dec << endl;
+        instrOut << hex << setw(8) << setfill('0') << instr << endl;
     }
 
     // Output data section

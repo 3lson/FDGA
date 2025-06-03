@@ -3,6 +3,18 @@ module top #(
 )(
     input logic clk,
     input logic rst,
+
+    //BRAM interface to data memory (Data BRAM)
+    output logic dm_we,
+    output logic [WIDTH-1:0] dm_addr,
+    output logic [WIDTH-1:0] dm_wdata,
+    output logic [WIDTH-1:0] dm_rdata,
+
+    //BRAM interface to instruction memory (Instr BRAM)
+    output logic [WIDTH-1:0] im_addr,
+    output logic [WIDTH-1:0] im_instr,
+
+    //Output for debug
     output logic [WIDTH-1:0] a0
 );
     // Program counter
@@ -171,16 +183,9 @@ module top #(
         .PC(PCF)
     );
 
-    //Completed
-    instr_mem #(
-        .ADDRESS_WIDTH(32),
-        .ADDRESS_REAL_WIDTH(12),
-        .DATA_WIDTH(8),
-        .DATA_OUT_WIDTH(32)
-    ) InstructionMemory (
-        .addr(PCF),
-        .instr(instrF)
-    );
+    // Replaced with BRAM mapping 
+    assign instrF = im_instr; // Internal instruction signal
+    assign im_addr = PCF; // Address into instruction BRAM
 
     //*
     pipeline_FECtoDEC pipeline_FECtoDEC (
@@ -471,14 +476,12 @@ module top #(
 
     // Pipeline Stage 4 - Memory (MEM)
 
-   //Completed 
-    data_mem DataMemory (
-        .clk(clk),
-        .WDME(WDMEM),
-        .A(ALUResultM), //forwarded signal for non datamem instructions to execute stage Read outputs.
-        .WD(WriteDataIN),
-        .RD(ReadDataM) 
-    );
+    // BRAM Data Memory
+
+    assign dm_we = WDMEM;
+    assign dm_addr = ALUResultM;
+    assign dm_wdata = WriteDataIN;
+    assign ReadDataM = dm_rdata; // Feed BRAM read value back into pipeline
 
     assign WriteDataIN = (Rs2M == RdW) ? WD3W:WriteDataM;
 
