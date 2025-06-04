@@ -36,6 +36,8 @@ All instr are 32 bit wide
 | `min` | 1000 | rd = min(rs1, rs2) |
 | `abs` | 1001 | absolute value |
 
+**Note:** `nop` operations would be completely 0x00000000
+
 ### I-type (Immediate Arith)
 `opcode = 001`
 

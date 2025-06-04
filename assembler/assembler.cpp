@@ -430,8 +430,8 @@ int main() {
         uint32_t instr = 0;
         
         cout << "PC 0x" << hex << pc_addr << ": " << line << " -> ";
-        
-        if (rTypeFunctMap.count(op)) instr = encodeRType(op, {tokens[1], tokens[2], tokens[3]});
+        if (op == "nop") instr = 0x00000000;
+        else if (rTypeFunctMap.count(op)) instr = encodeRType(op, {tokens[1], tokens[2], tokens[3]});
         else if (iTypeFunctMap.count(op)) instr = encodeIType(op, {tokens[1], tokens[2], tokens[3]});
         else if (fTypeFunctMap.count(op)) instr = encodeFType(op, tokens);
         else if (op == "lw" || op == "flw") instr = encodeLoad(op, {tokens[1], tokens[2]});
