@@ -8,11 +8,11 @@ module top #(
     output logic dm_we,
     output logic [WIDTH-1:0] dm_addr,
     output logic [WIDTH-1:0] dm_wdata,
-    output logic [WIDTH-1:0] dm_rdata,
+    input logic [WIDTH-1:0] dm_rdata,
 
     //BRAM interface to instruction memory (Instr BRAM)
     output logic [WIDTH-1:0] im_addr,
-    output logic [WIDTH-1:0] im_instr,
+    input logic [WIDTH-1:0] im_instr,
 
     //Output for debug
     output logic [WIDTH-1:0] a0
