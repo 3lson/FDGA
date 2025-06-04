@@ -12,10 +12,10 @@ module top #(
 
     //BRAM interface to instruction memory (Instr BRAM)
     output logic [WIDTH-1:0] im_addr,
-    input logic [WIDTH-1:0] im_instr,
+    input logic [WIDTH-1:0] im_instr
 
     //Output for debug
-    output logic [WIDTH-1:0] a0
+    //output logic [WIDTH-1:0] a0
 );
     // Program counter
     logic [1:0] PCsrcE;
@@ -249,8 +249,8 @@ module top #(
         .WD3(WD3W), //will be subject to change
 
         .RD1(integerRD1),
-        .RD2(integerRD2),
-        .a0(a0)
+        .RD2(integerRD2)
+        //.a0(a0)
     );
 
     // Register type selection muxes:
