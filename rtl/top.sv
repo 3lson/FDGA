@@ -12,7 +12,11 @@ module top #(
 
     //BRAM interface to instruction memory (Instr BRAM)
     output logic [WIDTH-1:0] im_addr,
-    input logic [WIDTH-1:0] im_instr
+    input logic [WIDTH-1:0] im_instr,
+    /* verilator lint_off UNUSED */
+    output logic im_we,
+    /* verilator lint_off UNUSED */
+    output logic [WIDTH-1:0] im_wdata
 
     //Output for debug
     //output logic [WIDTH-1:0] a0
