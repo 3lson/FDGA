@@ -5,7 +5,7 @@ module top #(
     input logic rst,
 
     //BRAM interface to data memory (Data BRAM)
-    output logic dm_we,
+    output logic [3:0] dm_we,
     output logic [WIDTH-1:0] dm_addr,
     output logic [WIDTH-1:0] dm_wdata,
     input logic [WIDTH-1:0] dm_rdata,
@@ -14,9 +14,9 @@ module top #(
     output logic [WIDTH-1:0] im_addr,
     input logic [WIDTH-1:0] im_instr,
     /* verilator lint_off UNUSED */
-    output logic im_we,
+    //output logic im_we,
     /* verilator lint_off UNUSED */
-    output logic [WIDTH-1:0] im_wdata,
+    //output logic [WIDTH-1:0] im_wdata,
 
     output logic done
 
@@ -485,8 +485,9 @@ module top #(
     // Pipeline Stage 4 - Memory (MEM)
 
     // BRAM Data Memory
+    //Made this 4 bits
 
-    assign dm_we = WDMEM;
+    assign dm_we = {4{WDMEM}};
     assign dm_addr = ALUResultM;
     assign dm_wdata = WriteDataIN;
     assign ReadDataM = dm_rdata; // Feed BRAM read value back into pipeline
