@@ -16,7 +16,9 @@ module top #(
     /* verilator lint_off UNUSED */
     output logic im_we,
     /* verilator lint_off UNUSED */
-    output logic [WIDTH-1:0] im_wdata
+    output logic [WIDTH-1:0] im_wdata,
+
+    output logic done
 
     //Output for debug
     //output logic [WIDTH-1:0] a0
@@ -150,7 +152,7 @@ module top #(
     //UNIQUE INTERNAL TOP SIGNAL
     logic [WIDTH-1:0] WD3W;
 
-    logic exit;
+    logic in_exit;
 
     logic floatingALUD;
     logic floatingALUE;
@@ -221,12 +223,14 @@ module top #(
         .isLoadE(isLoadD),
         .ResultSrc(ResultSrcD),
         .WD3Src(WD3SrcD),
-        .exit(exit),
+        .exit(in_exit),
         .floatingALU(floatingALUD),
         .floatingRead(floatingReadD),
         .floatingWrite(floatingWriteD)
 
     );
+
+    assign done = in_exit;
 
     //Completed
     signextension #(
