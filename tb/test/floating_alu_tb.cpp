@@ -4,17 +4,17 @@
 #include <bit>
 
 // Floating ALU Ops
-#define FALU_ADD        0b0000
-#define FALU_SUB        0b0001
-#define FALU_MUL        0b0010
-#define FALU_DIV        0b0011
-#define FALU_ABS        0b1000
-#define FALU_EQ         0b0110
-#define FALU_SLT        0b0100
-#define FALU_FCVT_WS    0b1001
-#define FALU_FCVT_SW    0b1010
+#define FALU_ADD        0b01110
+#define FALU_SUB        0b01111
+#define FALU_MUL        0b10000
+#define FALU_DIV        0b10001
+#define FALU_ABS        0b10110
+#define FALU_EQ         0b10100
+#define FALU_SLT        0b10010
+#define FALU_FCVT_WS    0b10111
+#define FALU_FCVT_SW    0b11000
 //new tests need to be implemented
-#define FALU_NEG 0b0101
+#define FALU_NEG 0b10011
 
 class FloatingALUTestbench : public BaseTestbench {
 protected:

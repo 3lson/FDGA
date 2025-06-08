@@ -1,12 +1,12 @@
 #pragma once
 #include <print>
 #include <array>
-#include "Vgpu.h"
-#include "instructions.hpp"
+#include "Vdut.h"
+#include "elsonv_instructions.hpp"
 
 namespace sim {
 
-constexpr void tick(Vgpu& top) {
+constexpr void tick(Vdut& top) {
     top.clk = 0;
     top.eval();
     top.clk = 1;
@@ -30,7 +30,7 @@ template <uint32_t num_channels>
 struct InstructionMemory {
     static constexpr IData MAX_SIZE = std::numeric_limits<IData>::max();
 
-    Vgpu* dut;
+    Vdut* dut;
     CData *instruction_mem_read_valid;                              // input
     std::array<IData*, num_channels> instruction_mem_read_address;  // input
     CData *instruction_mem_read_ready;                              // output
@@ -82,7 +82,7 @@ template <uint32_t num_channels>
 struct DataMemory {
     static constexpr IData MAX_SIZE = std::numeric_limits<IData>::max();
 
-    Vgpu* dut;
+    Vdut* dut;
     CData *data_mem_read_valid;                  // input
     IData *data_mem_read_address[num_channels];  // input
     CData *data_mem_read_ready;                  // output
@@ -152,7 +152,7 @@ struct DataMemory {
 };
 
 template <uint32_t num_channels>
-auto make_instruction_memory(Vgpu* dut) -> InstructionMemory<num_channels> {
+auto make_instruction_memory(Vdut* dut) -> InstructionMemory<num_channels> {
     InstructionMemory<num_channels> mem{};
     mem.dut = dut;
     mem.instruction_mem_read_valid = &dut->instruction_mem_read_valid;
@@ -165,7 +165,7 @@ auto make_instruction_memory(Vgpu* dut) -> InstructionMemory<num_channels> {
 }
 
 template <uint32_t num_channels>
-auto make_data_memory(Vgpu* dut) -> DataMemory<num_channels> {
+auto make_data_memory(Vdut* dut) -> DataMemory<num_channels> {
     DataMemory<num_channels> mem{};
     mem.dut = dut;
     mem.data_mem_read_valid = &dut->data_mem_read_valid;
@@ -181,7 +181,7 @@ auto make_data_memory(Vgpu* dut) -> DataMemory<num_channels> {
     return mem;
 }
 
-constexpr void set_kernel_config(Vgpu& top, IData base_instructions_address, IData base_data_address, IData num_blocks, IData num_warps_per_block) {
+constexpr void set_kernel_config(Vdut& top, IData base_instructions_address, IData base_data_address, IData num_blocks, IData num_warps_per_block) {
     VlWide<4>& kernel_config = top.kernel_config;
     kernel_config[3] = base_instructions_address;
     kernel_config[2] = base_data_address;
@@ -190,7 +190,7 @@ constexpr void set_kernel_config(Vgpu& top, IData base_instructions_address, IDa
 }
 
 template <uint32_t num_channels>
-bool simulate(Vgpu& top, InstructionMemory<num_channels>& instruction_mem, DataMemory<num_channels>& data_mem, uint32_t max_num_cycles) {
+bool simulate(Vdut& top, InstructionMemory<num_channels>& instruction_mem, DataMemory<num_channels>& data_mem, uint32_t max_num_cycles) {
     top.execution_start = 1;
 
     for (auto cycle = 0u; cycle < max_num_cycles; ++cycle) {

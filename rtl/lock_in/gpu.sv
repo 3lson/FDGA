@@ -7,17 +7,21 @@ module gpu #(
     parameter int DATA_MEM_NUM_CHANNELS /*verilator public*/ = 8,     // Number of concurrent channels for sending requests to data memory
     parameter int INSTRUCTION_MEM_NUM_CHANNELS /*verilator public*/ = 8,     // Number of concurrent channels for sending requests to data memory
     parameter int NUM_CORES /*verilator public*/ = 1,                 // Number of cores to include in this GPU
-    parameter int WARPS_PER_CORE /*verilator public*/ = 2,            // Number of warps to in each core
-    parameter int THREADS_PER_WARP /*verilator public*/ = 32          // Number of threads per warp (max 32)
+    parameter int WARPS_PER_CORE /*verilator public*/ = 1,            // Number of warps to in each core
+    parameter int THREADS_PER_WARP /*verilator public*/ = 16          // Number of threads per warp (max 32)
 ) (
     input wire clk,
     input wire reset,
+    input logic [31:0] base_instr,
+    input logic [31:0] base_data,
+    input logic [31:0] num_blocks,
+    input logic [31:0] warps_per_block,
 
     input wire execution_start,
     output wire execution_done,
 
     // kernel configuration
-    input kernel_config_t kernel_config,
+    //input kernel_config_t kernel_config,
 
     // Program Memory
     output wire [INSTRUCTION_MEM_NUM_CHANNELS-1:0] instruction_mem_read_valid,
@@ -37,21 +41,33 @@ module gpu #(
 );
 
 kernel_config_t kernel_config_reg;
+
 logic start_execution; // EDA: Unimportant hack used because of EDA tooling
 
 // save kernel config on execution start to avoid losing data when the kernel is running
 always @(posedge clk) begin
     if (reset) begin
-        start_execution <= 0;
-    end else if (execution_start && !start_execution) begin
-        start_execution <= 1;
-        kernel_config_reg <= kernel_config;
-        $display("GPU: Kernel configuration:");
-        $display("     - Base instruction address: %h", kernel_config.base_instructions_address);
-        $display("     - Base data address: %h", kernel_config.base_data_address);
-        $display("     - Num %d blocks", kernel_config.num_blocks);
-        $display("     - Number of warps per block: %d", kernel_config.num_warps_per_block);
+        start_execution <= 1'b0;
+        kernel_config_reg <= '0; // IMPORTANT: Reset the register!
+    end else begin
+        // Always latch the inputs into the register on every cycle.
+        // This ensures kernel_config_reg is always up-to-date one cycle after the inputs change.
+        kernel_config_reg.base_instructions_address <= base_instr;
+        kernel_config_reg.base_data_address      <= base_data;
+        kernel_config_reg.num_blocks             <= num_blocks;
+        kernel_config_reg.num_warps_per_block    <= warps_per_block;
+
+        if (execution_start && !start_execution) begin
+            start_execution <= 1'b1;
+            // Now, we display the REGISTERED values, which is what the dispatcher actually sees.
+            $display("GPU: Kernel configuration (latched):");
+            $display("     - Base instruction address: %h", kernel_config_reg.base_instructions_address);
+            $display("     - Base data address: %h", kernel_config_reg.base_data_address);
+            $display("     - Num %d blocks", kernel_config_reg.num_blocks);
+            $display("     - Number of warps per block: %d", kernel_config_reg.num_warps_per_block);
+        end
     end
+    //$display("Checking dispatch:", kernel_config_reg.num_blocks);
 end
 
 logic [NUM_CORES-1:0] core_done;

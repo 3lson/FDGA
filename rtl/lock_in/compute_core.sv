@@ -137,7 +137,7 @@ lsu warp_lsu_inst (
 );
 
 always @(posedge clk) begin
-    $display(start_execution);
+    //$display(start_execution);
     if (reset) begin
         $display("Resetting core %0d", block_id);
         start_execution <= 0;
@@ -166,7 +166,7 @@ always @(posedge clk) begin
         // In parallel, check if fetchers are done, and if so, move to decode
         for (int i = 0; i < num_warps; i = i + 1) begin
             if (warp_state[i] == WARP_FETCH && fetcher_state[i] == FETCHER_DONE) begin
-                $display("Block: %0d: Warp %0d: Fetched instruction %h at address %h", block_id, i, fetched_instruction[i], pc[i]);
+                //$display("Block: %0d: Warp %0d: Fetched instruction %h at address %h", block_id, i, fetched_instruction[i], pc[i]);
                 warp_state[i] = WARP_DECODE;
             end
         end
@@ -189,7 +189,7 @@ always @(posedge clk) begin
         if (current_warp_state == WARP_UPDATE || current_warp_state == WARP_DONE) begin
             int next_warp = (current_warp + 1) % num_warps;
             int found_warp = -1;
-            $display("Block: %0d: Choosing next warp", block_id);
+            //$display("Block: %0d: Choosing next warp", block_id);
             for (int i = 0; i < WARPS_PER_CORE; i = i + 1) begin
                 int warp_index = (next_warp + i) % num_warps;
                 if ((warp_state[warp_index] != WARP_IDLE) && (warp_state[warp_index] != WARP_FETCH) && (warp_state[warp_index] != WARP_DONE)) begin
@@ -207,7 +207,7 @@ always @(posedge clk) begin
 
         case (current_warp_state)
             WARP_IDLE: begin
-                $display("Block: %0d: Warp %0d: Idle", block_id, current_warp);
+                //$display("Block: %0d: Warp %0d: Idle", block_id, current_warp);
             end
             WARP_FETCH: begin
                 // not possible to choose a warp that is fetching cause
@@ -241,10 +241,10 @@ always @(posedge clk) begin
                 end
             end
             WARP_EXECUTE: begin
-                $display("===================================");
-                $display("Mask: %32b", warp_execution_mask[current_warp]);
-                $display("Block: %0d: Warp %0d: Executing instruction %h at address %h", block_id, current_warp, fetched_instruction[current_warp], pc[current_warp]);
-                $display("Instruction opcode: %b", fetched_instruction[current_warp][6:0]);
+                // $display("===================================");
+                // $display("Mask: %32b", warp_execution_mask[current_warp]);
+                // $display("Block: %0d: Warp %0d: Executing instruction %h at address %h", block_id, current_warp, fetched_instruction[current_warp], pc[current_warp]);
+                // $display("Instruction opcode: %b", fetched_instruction[current_warp][6:0]);
                 if (decoded_scalar_instruction[current_warp]) begin
                     if (decoded_branch[current_warp]) begin
                         // Branch instruction
@@ -268,7 +268,7 @@ always @(posedge clk) begin
                     // Vector instruction
                     next_pc[current_warp] <= pc[current_warp] + 1;
                 end
-                $display("===================================");
+                //$display("===================================");
                 warp_state[current_warp] <= WARP_UPDATE;
 
                 if (decoded_reg_input_mux[current_warp] == VECTOR_TO_SCALAR) begin
@@ -285,7 +285,7 @@ always @(posedge clk) begin
             end
             WARP_UPDATE: begin
                 if (decoded_halt[current_warp]) begin
-                    $display("Block: %0d: Warp %0d: Finished executing instruction %h", block_id, current_warp, fetched_instruction[current_warp]);
+                    //$display("Block: %0d: Warp %0d: Finished executing instruction %h", block_id, current_warp, fetched_instruction[current_warp]);
                     warp_state[current_warp] <= WARP_DONE;
                 end else begin
                     pc[current_warp] <= next_pc[current_warp];

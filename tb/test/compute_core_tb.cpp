@@ -145,11 +145,11 @@ TEST_F(ComputeCoreTestbench, ExtendedOperation) {
         
         // Log some key signals periodically
         if (cycle % 10 == 0) {
-            std::cout << "Cycle " << cycle 
-                      << ": done=" << (int)top->done
-                      << ", inst_valid=0x" << std::hex << top->instruction_mem_read_valid
-                      << ", data_read_valid=0x" << top->data_mem_read_valid
-                      << std::dec << std::endl;
+            // std::cout << "Cycle " << cycle 
+            //           << ": done=" << (int)top->done
+            //           << ", inst_valid=0x" << std::hex << top->instruction_mem_read_valid
+            //           << ", data_read_valid=0x" << top->data_mem_read_valid
+            //           << std::dec << std::endl;
         }
         
         // Break early if done

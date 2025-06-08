@@ -54,40 +54,40 @@ typedef logic [11:0] imm12_t;
 // alu instructions enum
 typedef enum logic [4:0] {
     // register instructions
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    SLT,
-    SGT,
-    SEQ,
-    SNEZ,
-    MIN,
-    ABS,
+    ADD, // 00000
+    SUB, // 00001
+    MUL, // 00010
+    DIV, // 00011
+    SLT, // 00100
+    SGT, // 00101
+    SEQ, // 00110
+    SNEZ, // 00111
+    MIN, // 01000
+    ABS, // 01001
 
-    ADDI,
-    MULI,
-    DIVI,
-    SLLI,
+    ADDI, // 01010
+    MULI, // 01011
+    DIVI, // 01100
+    SLLI, // 01101
 
     // F-type instructions
-    FADD,
-    FSUB,
-    FMUL,
-    FDIV,
-    FLT,
-    FNEG,
-    FEQ,
-    FMIN,
-    FABS,
-    FCVT_W_S,
-    FCVT_S_W,
+    FADD, // 01110
+    FSUB, // 01111
+    FMUL, // 10000
+    FDIV, // 10001
+    FLT, // 10010
+    FNEG, // 10011
+    FEQ, // 10100
+    FMIN, // 10101
+    FABS, // 10110
+    FCVT_W_S, // 10111
+    FCVT_S_W, // 11000
 
     // compare instructions
-    BEQZ,
+    BEQZ, // 11001
 
     // jump instructions
-    JAL
+    JAL // 11010
 } alu_instruction_t;
 
 // warp state enum

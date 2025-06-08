@@ -1,6 +1,5 @@
 #pragma once
 #include "verilated.h"
-#include "error.hpp"
 #include <array>
 #include <algorithm>
 #include <bitset>
@@ -11,7 +10,7 @@
 #include <string>
 
 // Simple assertion helper for compile-time and runtime errors
-inline void assert_or_err(bool condition, const std::string& error_message){
+inline void assert_or_err(bool condition, const char* error_message){
     if(!condition){
         throw std::runtime_error(error_message);
     }
@@ -96,7 +95,7 @@ enum class Funct4 : IData {
 // ====== Funct3 ======
 
 enum class Funct3 : IData {
-    J = 0b000,
+    JUMP = 0b000,
     BEQZ = 0b0001,
     CALL = 0b010,
     RET = 0b011,
@@ -141,10 +140,10 @@ struct InstructionBits {
         bits |= (IData)opcode << 29u;
         return *this;
     }
-    constexpr auto set_scalar_flag() -> InstructionBits& {
-        bits |= 1u << 28u;
-        return *this;
-    }
+    // constexpr auto set_scalar_flag() -> InstructionBits& {
+    //     bits |= 1u << 28u;
+    //     return *this;
+    // }
     constexpr auto set_rd(Register rd) -> InstructionBits& {
         assert_or_err(rd.num < 32, "Register number must be < 32");
         bits |= rd.bits() << 0u;
@@ -202,11 +201,11 @@ struct InstructionBits {
         bits |= ((imm >> 2) & 0x1Fu) << 0u;    // imm[6:2]  -> instr[4:0]
         return *this;
     }
-    constexpr auto set_c_call_imm(IData imm) -> InstructionBits& {
-        // For C-Type Call, immediate is placed.
-        bits |= ((imm >> 2) & 0xFFFFu) << 13u; // imm[17:2] -> instr[28:13]
-        return *this;
-    }
+    // constexpr auto set_c_call_imm(IData imm) -> InstructionBits& {
+    //     // For C-Type Call, immediate is placed.
+    //     bits |= ((imm >> 2) & 0xFFFFu) << 13u; // imm[17:2] -> instr[28:13]
+    //     return *this;
+    // }
 };
 
 // High-level instruction constructors - this is the public API for tests.
@@ -215,8 +214,7 @@ namespace instructions {
 #define R_TYPE_INSTR(name, funct4) \
     constexpr auto name(Register rd, Register rs1, Register rs2, bool is_scalar = false) -> InstructionBits { \
         auto instr = InstructionBits().set_opcode(Opcode::R_TYPE).set_funct4(Funct4::funct4).set_rd(rd).set_rs1(rs1).set_rs2(rs2); \
-        if (is_scalar) instr.set_scalar_flag(); \
-        return instr; \
+        return instr; \        
     }
 R_TYPE_INSTR(add, ADD) R_TYPE_INSTR(sub, SUB) R_TYPE_INSTR(mul, MUL) R_TYPE_INSTR(div, DIV)
 R_TYPE_INSTR(slt, SLT) R_TYPE_INSTR(sgt, SGT) R_TYPE_INSTR(seq, SEQ) R_TYPE_INSTR(snez, SNEZ)
@@ -225,7 +223,7 @@ R_TYPE_INSTR(min, MIN) R_TYPE_INSTR(abs, ABS)
 #define I_TYPE_INSTR(name, funct4) \
     constexpr auto name(Register rd, Register rs1, IData imm, bool is_scalar = false) -> InstructionBits { \
         auto instr = InstructionBits().set_opcode(Opcode::I_TYPE).set_funct4(Funct4::funct4).set_rd(rd).set_rs1(rs1).set_i_imm(imm); \
-        if (is_scalar) instr.set_scalar_flag(); \
+        //if (is_scalar) instr.set_scalar_flag(); 
         return instr; \
     }
 I_TYPE_INSTR(addi, ADDI) I_TYPE_INSTR(muli, MULI) I_TYPE_INSTR(divi, DIVI) I_TYPE_INSTR(slli, SLLI)
@@ -233,7 +231,7 @@ I_TYPE_INSTR(addi, ADDI) I_TYPE_INSTR(muli, MULI) I_TYPE_INSTR(divi, DIVI) I_TYP
 #define F_TYPE_INSTR(name, funct4) \
     constexpr auto name(Register rd, Register rs1, Register rs2, bool is_scalar = false) -> InstructionBits { \
         auto instr = InstructionBits().set_opcode(Opcode::F_TYPE).set_funct4(Funct4::funct4).set_rd(rd).set_rs1(rs1).set_rs2(rs2); \
-        if (is_scalar) instr.set_scalar_flag(); \
+        //if (is_scalar) instr.set_scalar_flag(); 
         return instr; \
     }
 F_TYPE_INSTR(fadd_s, FADD_S) F_TYPE_INSTR(fsub_s, FSUB_S) F_TYPE_INSTR(fmul_s, FMUL_S) F_TYPE_INSTR(fdiv_s, FDIV_S)
@@ -243,25 +241,30 @@ F_TYPE_INSTR(fabs_s, FABS_S) F_TYPE_INSTR(fcvt_w_s, FCVT_W_S) F_TYPE_INSTR(fcvt_
 // M-Type (Memory) constructors
 constexpr auto lw(Register rd, Register rs1, IData imm, bool is_scalar=false) -> InstructionBits { 
     auto i = InstructionBits().set_opcode(Opcode::M_TYPE).set_funct4(Funct4::M_LW).set_rd(rd).set_rs1(rs1).set_m_load_imm(imm);
-    if(is_scalar) i.set_scalar_flag(); return i;
+    //if(is_scalar) i.set_scalar_flag(); 
+    return i;
 }
 constexpr auto sw(Register rs2, Register rs1, IData imm, bool is_scalar=false) -> InstructionBits {
     auto i = InstructionBits().set_opcode(Opcode::M_TYPE).set_funct4(Funct4::M_SW).set_rs2(rs2).set_rs1(rs1).set_m_store_imm(imm);
-    if(is_scalar) i.set_scalar_flag(); return i;
+    //if(is_scalar) i.set_scalar_flag(); 
+    return i;
 }
 constexpr auto flw(Register rd, Register rs1, IData imm, bool is_scalar=false) -> InstructionBits {
     auto i = InstructionBits().set_opcode(Opcode::M_TYPE).set_funct4(Funct4::M_FLW).set_rd(rd).set_rs1(rs1).set_m_load_imm(imm);
-    if(is_scalar) i.set_scalar_flag(); return i;
+    //if(is_scalar) i.set_scalar_flag(); 
+    return i;
 }
 constexpr auto fsw(Register rs2, Register rs1, IData imm, bool is_scalar=false) -> InstructionBits {
     auto i = InstructionBits().set_opcode(Opcode::M_TYPE).set_funct4(Funct4::M_FSW).set_rs2(rs2).set_rs1(rs1).set_m_store_imm(imm);
-    if(is_scalar) i.set_scalar_flag(); return i;
+    //if(is_scalar) i.set_scalar_flag(); 
+    return i;
 }
 
 // P-Type constructor
 constexpr auto lui(Register rd, IData upimm, bool is_scalar=false) -> InstructionBits {
     auto i = InstructionBits().set_opcode(Opcode::P_TYPE).set_rd(rd).set_p_lui_imm(upimm);
-    if(is_scalar) i.set_scalar_flag(); return i;
+    //if(is_scalar) i.set_scalar_flag(); 
+    return i;
 }
 
 // C-Type (Control) constructors - these are always scalar
