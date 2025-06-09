@@ -23,7 +23,7 @@ int main(){
     float clusters_x[3][20];
     float clusters_y[3][20];
     int cluster_sizes[3];
-    int max_iter =10;
+    int max_iter =10000;
     int num_points =20;
     int cycle;
     int j;
@@ -31,8 +31,8 @@ int main(){
     int done =1;
     int best;
 
-    float points_x[9];
-    float points_y[9];
+    float points_x[20];
+    float points_y[20];
 
     FILE *fin = fopen("points.txt", "r");
     num_points = 0;
@@ -41,10 +41,12 @@ int main(){
     }
     fclose(fin);
 
-    for(i=0; i<3; i++){
-        centroids_x[i] = points_x[i];
-        centroids_y[i] = points_y[i];
+    FILE *fin2 = fopen("clicked_points.txt", "r");
+    int num_clusters = 0;
+    while (num_clusters < 3 && fscanf(fin, "%f %f", &centroids_x[num_clusters], &centroids_y[num_clusters]) == 2) {
+        num_clusters++;
     }
+    fclose(fin2);
 
     for(cycle=0; cycle<max_iter; cycle++){
         done = 1;
@@ -92,7 +94,7 @@ int main(){
             break;
         }
     }
-        // Output this iteration to file
+    // Output this iteration to file
     FILE *fout = fopen("output.txt","w");
     if (!fout) {
         printf("Error opening output.txt for writing.");
