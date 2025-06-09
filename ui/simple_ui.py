@@ -96,6 +96,8 @@ def run_gui():
     canvas = tk.Canvas(root, width=640, height=480)
     canvas.pack()
 
+    num_centroids = 0 
+
     # define axis
     x_min, x_max = 0, 20
     y_min, y_max = 0, 20
@@ -135,7 +137,10 @@ def run_gui():
             return
 
         # Compile and run the C code
-        subprocess.run(['gcc', 'k_means2.c', '-o', 'k_means2'], capture_output=True, text=True)
+        compilation = subprocess.run(['gcc', 'k_means2.c', '-o', 'k_means2'], capture_output=True, text=True)
+        if compilation.returncode != 0:
+            messagebox.showerror("Compilation Error", compilation.stderr)
+            return
         subprocess.run(['./k_means2'], capture_output=True, text=True)
 
         # Read the full output file with all iterations
@@ -159,11 +164,13 @@ def run_gui():
         root.after(500, lambda: animate(i + 1, all_iterations))  # Wait 1 second between frames
 
     def reset_canvas():
-        nonlocal img, tk_img, points_generated
+        nonlocal img, tk_img, points_generated, num_centroids
+        num_centroids = 0
         points_generated = False
         points.clear()
         img = np.ones((480, 640, 3), dtype=np.uint8) * 255
         tk_img = ImageTk.PhotoImage(Image.fromarray(img))
+        open("clicked_points.txt", "w").close()
         canvas.delete('plot')
         canvas.create_image(0, 0, anchor='nw', image=tk_img, tags='plot')
         canvas.image = tk_img
@@ -172,6 +179,64 @@ def run_gui():
     # coordinate labels
     coord_label = tk.Label(root, text="Coordinates: ", font=("Arial", 10))
     coord_label.place(x=260, y=450)
+
+    def get_centroids(event):
+        nonlocal img, tk_img, points_generated, num_centroids, points
+
+        if 120 <= event.x <= 520 and 90 <= event.y <= 390:
+            x = x_min + (event.x - plot_x) * (x_max - x_min) / plot_width
+            y = y_min + (plot_y + plot_height - event.y) * (y_max - y_min) / plot_height
+            px = int(plot_x + (x - x_min) / (x_max - x_min) * plot_width)
+            py = int(plot_y + plot_height - (y - y_min) / (y_max - y_min) * plot_height)
+
+            img[py - 4:py + 4, px - 4:px + 4] = [100, 100, 100]  # gray box
+            num_centroids += 1
+
+            if num_centroids > 3:
+                with open("clicked_points.txt", "r") as file:
+                    lines = file.readlines()
+
+                if lines:
+                    x_str, y_str = lines[0].strip().split()
+                    x1 = float(x_str)
+                    y1 = float(y_str)
+                    px1 = int(plot_x + (x1 - x_min) / (x_max - x_min) * plot_width)
+                    py1 = int(plot_y + plot_height - (y1 - y_min) / (y_max - y_min) * plot_height)
+                    for i in range(5):
+                        for j in range(5):
+                            if np.all(img[py1 - i, px1 - j] == [100, 100, 100]):
+                                img[py1 - i, px1 - j] = [255, 255, 255]
+                            if np.all(img[py1 + i, px1 + j] == [100, 100, 100]):
+                                img[py1 + i, px1 + j] = [255, 255, 255]
+                            if np.all(img[py1 - i, px1 + j] == [100, 100, 100]):
+                                img[py1 - i, px1 + j] = [255, 255, 255]
+                            if np.all(img[py1 + i, px1 - j] == [100, 100, 100]):
+                                img[py1 + i, px1 - j] = [255, 255, 255]
+                    with open("clicked_points.txt", "w") as file:
+                        file.writelines(lines[1:])  # remove first
+                    with open("clicked_points.txt", "a") as file:
+                        file.write(f"{x:.2f} {y:.2f}\n")  # append new
+            else:
+                with open("clicked_points.txt", "a") as file:
+                    file.write(f"{x:.2f} {y:.2f}\n")
+
+            with open("points.txt", "r") as file:
+                lines2 = file.readlines()
+            for i in range(100):
+                x2_str, y2_str = lines2[i].strip().split()
+                x2 = float(x2_str)
+                y2 = float(y2_str)
+                px2 = int(plot_x + (x2 - x_min) / (x_max - x_min) * plot_width)
+                py2 = int(plot_y + plot_height - (y2 - y_min) / (y_max - y_min) * plot_height)
+                points.append((x2, y2))
+                # 5x5 black squares as points
+                img[py2 - 2:py2 + 3, px2 - 2:px2 + 3] = [0, 0, 0]
+
+            # Refresh canvas once
+            tk_img = ImageTk.PhotoImage(Image.fromarray(img))
+            canvas.create_image(0, 0, anchor='nw', image=tk_img, tags='plot')
+            canvas.image = tk_img
+            draw_axes()
 
 
     def show_coordinates(event):
@@ -185,7 +250,7 @@ def run_gui():
     canvas.bind('<Motion>', show_coordinates)
 
     def gen_points():
-        nonlocal img, tk_img, points_generated
+        nonlocal img, tk_img, points_generated, points
         points_generated = True
         points.clear()
         # reset image to white background
@@ -207,6 +272,15 @@ def run_gui():
         canvas.image = tk_img
         draw_axes()
 
+    def on_exit():
+        open("clicked_points.txt", "w").close()
+        open("points.txt", "w").close()
+        open("output.txt", "w").close()
+        root.destroy()  # This closes the window
+
+    # Register the custom exit function
+    root.protocol("WM_DELETE_WINDOW", on_exit)
+
     # buttons
     button_start = tk.Button(root, text="Start", command=draw_image)
     canvas.create_window(600, 440, anchor='se', window=button_start)
@@ -216,8 +290,39 @@ def run_gui():
 
     button_gen_points = tk.Button(root, text="Generate Points", command=gen_points)
     canvas.create_window(320, 440, anchor='s', window=button_gen_points)
+    
+    canvas.bind('<Button-1>', get_centroids)
+
 
     draw_axes()
     root.mainloop()
 
-run_gui()
+def start_screen():
+    start_root = tk.Tk()
+    start_root.title("K-Means Clustering - Introduction")
+    start_root.geometry("640x480")
+    start_root.resizable(False, False)
+
+    # Intro text
+    intro_text = (
+        "Welcome to the K-Means Clustering Visualizer!\n\n"
+        "This tool helps you understand how the K-Means clustering algorithm works.\n\n"
+        "1. Generate random points using the 'Generate Points' button.\n"
+        "2. Click to place initial centroids on the graph (max 3 at a time).\n"
+        "3. Click 'Start' to run the clustering algorithm implemented in C.\n"
+        "4. Watch as the algorithm updates cluster assignments and centroid positions over iterations.\n\n"
+        "Click 'Continue' to proceed to the interactive interface."
+    )
+
+    text_label = tk.Label(start_root, text=intro_text, wraplength=600, justify="left", font=("Arial", 12))
+    text_label.pack(padx=20, pady=40)
+
+    # Continue button
+    continue_btn = tk.Button(start_root, text="Continue →", font=("Arial", 12), command=lambda: [start_root.destroy(), run_gui()])
+    continue_btn.pack(side='right', padx=20, pady=20)
+
+    start_root.mainloop()
+
+
+# Start from the splash screen
+start_screen()
