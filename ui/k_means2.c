@@ -13,18 +13,20 @@ int main() {
     int MAX_POINTS = 10000;
     float EPS = 0.000001;
     int k = 3;
+    int num_clusters = 3;
     struct Point centroids[MAX_K];
     struct Point points[MAX_POINTS];
     struct Point old_centroids[MAX_K];
     int num_points = 1000;
 
     // Initial centroids
-    for (int i = 0; i < 2; i++) {
-        centroids[i].x = 3.2 + 2 * i;
-        centroids[i].y = 2.1 + 2 * i;
+    // Read points
+    FILE *fin2 = fopen("clicked_points.txt", "r");
+    num_clusters = 0;
+    while (num_clusters < k && fscanf(fin2, "%f %f", &centroids[num_clusters].x, &centroids[num_clusters].y) == 2) {
+        num_clusters++;
     }
-    centroids[2].x = 4.6;
-    centroids[2].y = 3.5;
+    fclose(fin2);
 
     // Read points
     FILE *fin = fopen("points.txt", "r");
