@@ -9,26 +9,7 @@ import os
 import pyautogui
 
 # weird code from neil
-# Screen dimensions
-SCREEN_W, SCREEN_H = pyautogui.size()
 
-# Target window size
-WINDOW_WIDTH = 640
-WINDOW_HEIGHT = 480
-
-# Positions
-GUI_POS_X = 645
-GUI_POS_Y = 0
-
-
-def get_geometry_string(x, y, width=WINDOW_WIDTH, height=WINDOW_HEIGHT):
-    return f"{width}x{height}+{x}+{y}"
-
-# Plotting area size (proportional to window)
-PLOT_WIDTH = int(WINDOW_WIDTH * 0.5)
-PLOT_HEIGHT = int(WINDOW_HEIGHT * 0.5)
-PLOT_X = (WINDOW_WIDTH - PLOT_WIDTH) // 2
-PLOT_Y = (WINDOW_HEIGHT - PLOT_HEIGHT) // 2
 
 
 
@@ -118,11 +99,11 @@ def generate_visualization(clusters, width=640, height=480):
 def run_gui():
     root = tk.Tk()
     root.title("K-Means Visualization")
-    root.geometry(get_geometry_string(GUI_POS_X, GUI_POS_Y, WINDOW_WIDTH, WINDOW_HEIGHT))
+    root.geometry("640x480")
     root.resizable(False, False)
 
     # Use parameterized dimensions
-    canvas = tk.Canvas(root, width=WINDOW_WIDTH, height=WINDOW_HEIGHT)
+    canvas = tk.Canvas(root, width=640, height=480)
     canvas.pack()
 
     # State variables
@@ -327,8 +308,8 @@ def run_gui():
 
 def start_screen():
     start_root = tk.Tk()
-    start_root.title("K-Means Clustering - Tutorial")
-    start_root.geometry(get_geometry_string(GUI_POS_X, GUI_POS_Y, WINDOW_WIDTH, WINDOW_HEIGHT))
+    start_root.title("K-Means Clustering - Introduction")
+    start_root.geometry("640x480")
     start_root.resizable(False, False)
 
     # Intro text
