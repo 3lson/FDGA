@@ -1,6 +1,7 @@
 import socket
 import threading
 import struct
+from pynq import Overlay, MMIO
 
 # FAKE MMIO Simulation using a bytearray (simulates 64KB of BRAM)
 class FakeMMIO:
@@ -23,55 +24,65 @@ def handle_client(conn, addr):
     print(f'Connected by {addr}')
     try:
         while True:
+            #receive command header 4 bytes command type + length
             header = conn.recv(4)
             if not header:
                 break
-            cmd_type, data_len = struct.unpack('!HH', header)
 
-            if cmd_type == 0x0001:  # write
+            cmd_type, data_len = struct.unpack('!HH', header)
+            
+            #process command
+            if cmd_type == 0x0001:  # write command
+                #reive data in packets
                 data = b''
                 while len(data) < data_len:
                     chunk = conn.recv(min(4096, data_len - len(data)))
                     data += chunk
-
+                
+                # his si so that data writes cirrectly when the data does not align with 32bits.
                 offset = 0
                 while offset < data_len:
                     aligned_offset = offset & 0xFFFFFFFC
                     current_val = mmio.read(aligned_offset)
                     current_bytes = bytearray(current_val.to_bytes(4, 'little'))
+                    
+                    #replace relevant bytes
                     for i in range(min(4, data_len - offset)):
                         current_bytes[(offset % 4) + i] = data[offset + i]
+                    
                     new_val = int.from_bytes(current_bytes, 'little')
                     mmio.write(aligned_offset, new_val)
                     offset += 4
-
                 conn.sendall(struct.pack('!I', 0x1))
-
-            elif cmd_type == 0x0002:  # read
+                
+            elif cmd_type == 0x0002:#read command
+                #read from BRAM via MMIO
                 data = bytearray()
                 for offset in range(0, data_len, 4):
                     read_size = min(4, data_len - offset)
                     value = mmio.read(offset)
                     data.extend(value.to_bytes(4, 'little')[:read_size])
-                header = struct.pack('!II', 0x2, len(data))
+                
+                #send data with header
+                header = struct.pack('!II', 0x2, len(data)) #read response header
                 conn.sendall(header + data)
-
-            elif cmd_type == 0x0000:  # handshake
+                
+            elif cmd_type == 0x0000:  #handshake
                 conn.sendall(struct.pack('!I', 0x0))
+                
             else:
                 print(f"Unknown command: {cmd_type}")
-                conn.sendall(struct.pack('!I', 0xFFFFFFFF))
+                conn.sendall(struct.pack('!I', 0xFFFFFFFF))  #error
 
     except Exception as e:
         print(f"Error: {e}")
     finally:
         conn.close()
 
-
 def run_server():
-    HOST = '192.168.2.2'
+    HOST = '192.168.2.2'  #PYNQ IP change as needed
     PORT = 9090
-
+    
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((HOST, PORT))
@@ -82,6 +93,5 @@ def run_server():
             thread = threading.Thread(target=handle_client, args=(conn, addr))
             thread.start()
 
-# Use this inside your Jupyter notebook cell:
-# threading.Thread(target=run_server, daemon=True).start()
-# print("Fake MMIO server started")
+if __name__ == "__main__":
+    run_server()
