@@ -5,11 +5,6 @@ from PIL import Image, ImageTk
 import numpy as np
 import subprocess
 import ui_virtual_mouse 
-import os
-import pyautogui
-
-# weird code from neil
-
 
 
 
@@ -290,13 +285,13 @@ def run_gui():
     root.protocol("WM_DELETE_WINDOW", on_exit)
 
     # buttons
-    button_start = tk.Button(root, text="Start", command=draw_image)
+    button_start = tk.Button(root, text="Start",width=15,height=1, command=draw_image)
     canvas.create_window(600, 440, anchor='se', window=button_start)
 
-    button_reset = tk.Button(root, text="Reset", command=reset_canvas)
+    button_reset = tk.Button(root, text="Reset",width=15,height=1, command=reset_canvas)
     canvas.create_window(40, 440, anchor='sw', window=button_reset)
 
-    button_gen_points = tk.Button(root, text="Generate Points", command=gen_points)
+    button_gen_points = tk.Button(root, text="Generate Points",width=15,height=1, command=gen_points)
     canvas.create_window(320, 440, anchor='s', window=button_gen_points)
     
     canvas.bind('<Button-1>', get_centroids)
@@ -309,7 +304,7 @@ def run_gui():
 def start_screen():
     start_root = tk.Tk()
     start_root.title("K-Means Clustering - Introduction")
-    start_root.geometry("640x480")
+    start_root.geometry("800x800")
     start_root.resizable(False, False)
 
     # Intro text
@@ -330,7 +325,7 @@ def start_screen():
     text_label.pack(padx=20, pady=40)
 
     # Continue button
-    continue_btn = tk.Button(start_root, text="Continue →", font=("Arial", 12), command=lambda: [start_root.destroy(), run_gui()])
+    continue_btn = tk.Button(start_root, text="Continue →", font=("Arial", 12),width=20,height=2,command=lambda: [start_root.destroy(), run_gui()])
     continue_btn.pack(side='right', padx=20, pady=20)
 
     start_root.mainloop()
