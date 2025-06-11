@@ -93,5 +93,7 @@ def run_server():
             thread = threading.Thread(target=handle_client, args=(conn, addr))
             thread.start()
 
-if __name__ == "__main__":
-    run_server()
+import threading
+threading.Thread(target=run_server, daemon=True).start()
+print("TCP server started")
+
