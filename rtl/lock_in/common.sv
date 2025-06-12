@@ -5,8 +5,8 @@
 // Global Macros
 `define DATA_WIDTH 32
 `define INSTRUCTION_WIDTH 32
-`define DATA_MEMORY_ADDRESS_WIDTH 32
-`define INSTRUCTION_MEMORY_ADDRESS_WIDTH 32
+`define DATA_MEMORY_ADDRESS_WIDTH 16
+`define INSTRUCTION_MEMORY_ADDRESS_WIDTH 16
 
 // Type Definitions
 typedef logic [`DATA_WIDTH-1:0] data_t;
