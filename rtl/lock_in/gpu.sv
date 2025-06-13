@@ -81,13 +81,17 @@ module gpu #(
     logic m_axi_awvalid, m_axi_wvalid, m_axi_arvalid;
     logic m_axi_bvalid_to_mcu, m_axi_rvalid_to_mcu;
 
-    // --- FINAL FIX: Explicit port connections ---
+    always_comb begin
+        $display("Trying to write to MCU Addr: ", lsu_write_address);
+        $display("Trying to write to MCU Data: ", lsu_write_data);
+    end
+    
     mcu #(
         .THREADS_PER_WARP(THREADS_PER_WARP)
     ) mcu_inst (
         .clk(clk),
         .reset(reset),
-        .start_mcu_transaction(core_start_mcu_transaction),
+        //.start_mcu_transaction(core_start_mcu_transaction),
         .mcu_is_busy(mcu_busy),
 
         // Connect the consumer array ports to the LSU wires
@@ -154,7 +158,8 @@ module gpu #(
         .data_mem_write_data(lsu_write_data),
         .data_mem_write_ready(lsu_write_ready),
 
-        .start_mcu_transaction(core_start_mcu_transaction)
+        //.start_mcu_transaction(core_start_mcu_transaction),
+        .mcu_is_busy(mcu_busy)
     );
     
 endmodule

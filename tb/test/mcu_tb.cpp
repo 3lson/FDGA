@@ -26,7 +26,7 @@ protected:
 
     void initializeInputs() override {
         // Set all DUT inputs to a known, idle state
-        top->start_mcu_transaction = 0;
+        //top->start_mcu_transaction = 0;
 
         // FIXED: Initialize packed arrays to zero
         top->consumer_read_valid = 0;
@@ -115,17 +115,19 @@ protected:
         }
 
         // --- Read Data Channel ---
-        if (read_burst_active && top->m_axi_rready) {
+        if (read_burst_active) { // Removed rready check to simplify
             top->m_axi_rvalid = 1;
             uint32_t current_read_addr = read_burst_addr + (read_burst_count * 4);
             top->m_axi_rdata = axi_memory.count(current_read_addr) ? axi_memory[current_read_addr] : 0xDEADBEEF;
             top->m_axi_rlast = (read_burst_count == read_burst_len);
             printf("[TB] AXI Slave: Asserting RVALID. Reading 0x%x from addr 0x%x. RLAST=%d\n", top->m_axi_rdata, current_read_addr, top->m_axi_rlast);
 
-            if (top->m_axi_rlast) {
+            if (top->m_axi_rlast && top->m_axi_rready) { // Handshake on last beat
                 read_burst_active = false;
             }
-            read_burst_count++;
+            if (top->m_axi_rready) { // Increment only on handshake
+               read_burst_count++;
+            }
         } else {
             top->m_axi_rvalid = 0;
             top->m_axi_rlast = 0;
@@ -145,12 +147,12 @@ protected:
         for (const auto& req : requests) {
             if (req.is_write) {
                 // FIXED: Set individual bits in packed array using bitwise OR
-                top->consumer_write_valid |= (1 << req.thread_idx);
+                top->consumer_write_valid |= (1ULL << req.thread_idx);
                 top->consumer_write_address[req.thread_idx] = req.address;
                 top->consumer_write_data[req.thread_idx] = req.data;
             } else {
                 // FIXED: Set individual bits in packed array using bitwise OR
-                top->consumer_read_valid |= (1 << req.thread_idx);
+                top->consumer_read_valid |= (1ULL << req.thread_idx);
                 top->consumer_read_address[req.thread_idx] = req.address;
             }
         }
@@ -162,9 +164,10 @@ protected:
         applyRequests(requests);
 
         // 2. Pulse the start signal for one cycle
-        top->start_mcu_transaction = 1;
+        // Dropped the trigger signal
+        // top->start_mcu_transaction = 1;
         tick();
-        top->start_mcu_transaction = 0;
+        // top->start_mcu_transaction = 0;
         
         // 3. De-assert consumer valid signals (the DUT should have latched them)
         // FIXED: Clear packed arrays to zero

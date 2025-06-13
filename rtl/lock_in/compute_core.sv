@@ -33,7 +33,8 @@ module compute_core#(
     output  data_memory_address_t           data_mem_write_address          [NUM_LSUS],
     output  data_t                          data_mem_write_data             [NUM_LSUS],
     input   logic   [NUM_LSUS-1:0]          data_mem_write_ready,
-    output logic                            start_mcu_transaction
+    output logic                            start_mcu_transaction, 
+    input logic                             mcu_is_busy
 );
 
 typedef logic [THREADS_PER_WARP-1:0] warp_mask_t;
@@ -217,6 +218,10 @@ always @(posedge clk) begin
             end
         end
 
+        if(start_mcu_transaction) begin
+            start_mcu_transaction <= 1'b0;
+        end
+
         // If all active warps have synchronized, release them all AT ONCE.
         if (all_warps_synced) begin
             $display("Block: %0d: All warps synchronized, releasing barrier", block_id);
@@ -288,27 +293,42 @@ always @(posedge clk) begin
                 warp_state[current_warp] <= WARP_REQUEST;
             end
             WARP_REQUEST: begin
-                // takes one cycle cause we are just changing the LSU state
-                warp_state[current_warp] <= WARP_WAIT;
-                start_mcu_transaction <= 1'b1;
-            end
-            WARP_WAIT: begin
-                start_mcu_transaction <= 1'b0;
-                any_lsu_waiting = 1'b0;
-                for (int i = 0; i < THREADS_PER_WARP; i++) begin
-                    // Make sure no lsu_state = REQUESTING or WAITING
-                    if (lsu_state[i] == LSU_REQUESTING || lsu_state[i] == LSU_WAITING) begin
-                        any_lsu_waiting = 1'b1;
-                        break;
+
+                if (decoded_mem_read_enable_per_warp[current_warp] || decoded_mem_write_enable_per_warp[current_warp]) begin
+                        warp_state[current_warp] <= WARP_WAIT;
+                    end else begin
+                        // Not a memory op, so no need to wait for the MCU.
+                        warp_state[current_warp] <= WARP_EXECUTE;
                     end
                 end
+                // takes one cycle cause we are just changing the LSU state
+                // if (decoded_mem_read_enable_per_warp[current_warp] || decoded_mem_write_enable_per_warp[current_warp]) begin
+                //     // We have a memory op! Pulse the start signal for the MCU for one cycle.
+                //     start_mcu_transaction <= 1'b1;
+                // end
+                // Always transition to WAIT after this stage.
+            //     warp_state[current_warp] <= WARP_WAIT;
+            // end
+            WARP_WAIT: begin
+                // any_lsu_waiting = 1'b0;
+                // for (int i = 0; i < THREADS_PER_WARP; i++) begin
+                //     // Make sure no lsu_state = REQUESTING or WAITING
+                //     if (lsu_state[i] == LSU_REQUESTING || lsu_state[i] == LSU_WAITING) begin
+                //         any_lsu_waiting = 1'b1;
+                //         break;
+                //     end
+                // end
 
-                if (scalar_lsu_state == LSU_REQUESTING || scalar_lsu_state == LSU_WAITING) begin
-                    any_lsu_waiting = 1'b1;
-                end
+                // if (scalar_lsu_state == LSU_REQUESTING || scalar_lsu_state == LSU_WAITING) begin
+                //     any_lsu_waiting = 1'b1;
+                // end
 
-                // If no LSU is waiting for a response, move onto the next stage
-                if (!any_lsu_waiting) begin
+                // // If no LSU is waiting for a response, move onto the next stage
+                // if (!any_lsu_waiting) begin
+                //     warp_state[current_warp] <= WARP_EXECUTE;
+                // end
+
+                if (!mcu_is_busy) begin
                     warp_state[current_warp] <= WARP_EXECUTE;
                 end
             end
