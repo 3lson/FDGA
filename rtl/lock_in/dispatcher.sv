@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns/1ns
 
-`include "common.sv"
+`include "common.svh"
 
 module dispatcher #(
     parameter int NUM_CORES

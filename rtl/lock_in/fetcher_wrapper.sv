@@ -2,7 +2,7 @@
 
 `default_nettype none
 `timescale 1ns / 1ns
-`include "common.sv"
+`include "common.svh"
 
 module fetcher_wrapper (
     input  logic clk,

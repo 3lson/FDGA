@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 `default_nettype none
 
-`include "common.sv"
+`include "common.svh"
 
 module top #(
     parameter int DATA_MEM_NUM_CHANNELS  = 8,

@@ -2,7 +2,7 @@
 `default_nettype none
 `timescale 1ns/1ns
 
-`include "common.sv"
+`include "common.svh"
 `include "gpu_defines.svh" // Include your memory map defines
 
 module gpu_pynq_top #(

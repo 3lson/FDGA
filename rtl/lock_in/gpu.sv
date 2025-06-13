@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns/1ns
 
-`include "common.sv"
+`include "common.svh"
 
 module gpu #(
     parameter int DATA_MEM_NUM_CHANNELS /*verilator public*/ = 8,     // Number of concurrent channels for sending requests to data memory

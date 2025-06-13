@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns/1ns
 
-`include "common.sv"
+`include "common.svh"
 // =================================================
 // A 32-bit Floating Point ALU
 // with ADD, SUB, MUL, DIV, EQ, NEQ, ABS and SLT

@@ -3,7 +3,7 @@
 
 // This simulates the execution of a block of warps which contains multiple threads
 
-`include "common.sv"
+`include "common.svh"
 
 module compute_core#(
     parameter int WARPS_PER_CORE = 4,            // Number of warps to in each core

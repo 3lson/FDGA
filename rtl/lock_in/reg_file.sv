@@ -1,6 +1,6 @@
 `default_nettype none
 `timescale 1ns/1ns
-`include "common.sv"
+`include "common.svh"
 
 module reg_file #(
     parameter int THREADS_PER_WARP = 16,

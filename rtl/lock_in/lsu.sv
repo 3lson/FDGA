@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns/1ns
 
-`include "common.sv"
+`include "common.svh"
 
 // LOAD-STORE UNIT
 // > Handles asynchronous memory load and store operations and waits for response
