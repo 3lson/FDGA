@@ -2,12 +2,13 @@
 `timescale 1ns/1ns
 
 `include "common.sv"
-`include "gpu_defines.svh" // Make sure you have this for constants like THREAD_LOCAL_MEM_BASE_ADDR
 
 module gpu #(
+    parameter int DATA_MEM_NUM_CHANNELS /*verilator public*/ = 8,     // Number of concurrent channels for sending requests to data memory
+    parameter int INSTRUCTION_MEM_NUM_CHANNELS /*verilator public*/ = 8,     // Number of concurrent channels for sending requests to data memory
     parameter int NUM_CORES /*verilator public*/ = 1,                 // Number of cores to include in this GPU
-    parameter int WARPS_PER_CORE /*verilator public*/ = 4,            // Match the compute_core parameter
-    parameter int THREADS_PER_WARP /*verilator public*/ = 16          // Match the compute_core parameter
+    parameter int WARPS_PER_CORE /*verilator public*/ = 1,            // Number of warps to in each core
+    parameter int THREADS_PER_WARP /*verilator public*/ = 16          // Number of threads per warp (max 32)
 ) (
     input wire clk,
     input wire reset,
@@ -19,36 +20,38 @@ module gpu #(
     input wire execution_start,
     output wire execution_done,
 
-    // Instruction Memory (Single Port ROM BRAM Interface)
-    output logic                                 imem_en,
-    output instruction_memory_address_t          imem_addr,
-    input  instruction_t                         imem_dout,
-    
-    // Data Memory (True Dual Port BRAM Interface)
-    // Port A: Scalar/Global Memory Access
-    output logic                                 dmem_a_en,
-    output logic [`DATA_MEMORY_WE_WIDTH-1:0]      dmem_a_we, // Use a write-enable per byte
-    output data_memory_address_t                 dmem_a_addr,
-    output data_t                                dmem_a_din,
-    input  data_t                                dmem_a_dout,
+    // kernel configuration
+    //input kernel_config_t kernel_config,
 
-    // Port B: Vector/Thread-Local Memory Access
-    output logic                                 dmem_b_en,
-    output logic [`DATA_MEMORY_WE_WIDTH-1:0]      dmem_b_we,
-    output data_memory_address_t                 dmem_b_addr,
-    output data_t                                dmem_b_din,
-    input  data_t                                dmem_b_dout
+    // Program Memory
+    output wire [INSTRUCTION_MEM_NUM_CHANNELS-1:0] instruction_mem_read_valid,
+    output instruction_memory_address_t instruction_mem_read_address [INSTRUCTION_MEM_NUM_CHANNELS],
+    input wire [INSTRUCTION_MEM_NUM_CHANNELS-1:0] instruction_mem_read_ready,
+    input instruction_t instruction_mem_read_data [INSTRUCTION_MEM_NUM_CHANNELS],
+
+    // Data Memory
+    output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_read_valid,
+    output data_memory_address_t data_mem_read_address [DATA_MEM_NUM_CHANNELS],
+    input wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_read_ready,
+    input data_memory_address_t data_mem_read_data [DATA_MEM_NUM_CHANNELS],
+    output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_write_valid,
+    output data_memory_address_t data_mem_write_address [DATA_MEM_NUM_CHANNELS],
+    output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
+    input wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_write_ready
 );
 
-// --- Kernel Configuration & Dispatcher ---
 kernel_config_t kernel_config_reg;
-logic start_execution;
 
+logic start_execution; // EDA: Unimportant hack used because of EDA tooling
+
+// save kernel config on execution start to avoid losing data when the kernel is running
 always @(posedge clk) begin
     if (reset) begin
         start_execution <= 1'b0;
-        kernel_config_reg <= '0;
+        kernel_config_reg <= '0; // IMPORTANT: Reset the register!
     end else begin
+        // Always latch the inputs into the register on every cycle.
+        // This ensures kernel_config_reg is always up-to-date one cycle after the inputs change.
         kernel_config_reg.base_instructions_address <= base_instr;
         kernel_config_reg.base_data_address      <= base_data;
         kernel_config_reg.num_blocks             <= num_blocks;
@@ -56,8 +59,15 @@ always @(posedge clk) begin
 
         if (execution_start && !start_execution) begin
             start_execution <= 1'b1;
+            // Now, we display the REGISTERED values, which is what the dispatcher actually sees.
+            $display("GPU: Kernel configuration (latched):");
+            $display("     - Base instruction address: %h", kernel_config_reg.base_instructions_address);
+            $display("     - Base data address: %h", kernel_config_reg.base_data_address);
+            $display("     - Num %d blocks", kernel_config_reg.num_blocks);
+            $display("     - Number of warps per block: %d", kernel_config_reg.num_warps_per_block);
         end
     end
+    //$display("Checking dispatch:", kernel_config_reg.num_blocks);
 end
 
 logic [NUM_CORES-1:0] core_done;
@@ -65,177 +75,189 @@ logic [NUM_CORES-1:0] core_start;
 logic [NUM_CORES-1:0] core_reset;
 data_t core_block_id [NUM_CORES];
 
-dispatcher #(.NUM_CORES(NUM_CORES)) dispatcher_inst (
-    .clk(clk), .reset(reset), .start(start_execution), .kernel_config(kernel_config_reg),
-    .core_done(core_done), .core_start(core_start), .core_reset(core_reset),
-    .core_block_id(core_block_id), .done(execution_done)
-);
-
-
-// --- Core and Memory Interface Signal Declarations ---
-// These are the flattened buses that connect the cores to the arbiters.
-
-// LSU <> Data Memory Signals
-localparam int NUM_LSUS_PER_CORE = THREADS_PER_WARP + 1; // 16 vector + 1 scalar
+// LSU <> Data Memory Controller Channels
+localparam int NUM_LSUS_PER_CORE = THREADS_PER_WARP + 1;
 localparam int NUM_LSUS = NUM_CORES * NUM_LSUS_PER_CORE;
-localparam int SCALAR_LSU_OFFSET = THREADS_PER_WARP; // The index of the scalar LSU within a core's ports
-
-logic [NUM_LSUS-1:0] lsu_read_valid;
-logic [NUM_LSUS-1:0] lsu_write_valid;
+typedef logic [NUM_LSUS-1:0] lsu_size_t;
+lsu_size_t lsu_read_valid;
+lsu_size_t lsu_read_ready;
+lsu_size_t lsu_write_valid;
+lsu_size_t lsu_write_ready;
 data_memory_address_t lsu_read_address [NUM_LSUS];
 data_memory_address_t lsu_write_address [NUM_LSUS];
+data_t lsu_read_data [NUM_LSUS];
 data_t lsu_write_data [NUM_LSUS];
-logic [NUM_LSUS-1:0] lsu_read_ready;  // Driven by arbiters
-logic [NUM_LSUS-1:0] lsu_write_ready; // Driven by arbiters
-data_t lsu_read_data [NUM_LSUS];   // Driven by BRAM output
 
-// Fetcher <> Instruction Memory Signals
+// Fetcher <> Program Memory Controller Channels
 localparam NUM_FETCHERS = NUM_CORES * WARPS_PER_CORE;
-logic [NUM_FETCHERS-1:0] fetcher_read_valid;
+typedef logic [NUM_FETCHERS-1:0] fetcher_size_t;
+fetcher_size_t fetcher_read_valid;
 instruction_memory_address_t fetcher_read_address [NUM_FETCHERS];
-logic [NUM_FETCHERS-1:0] fetcher_read_ready; // Driven by arbiter
-instruction_t fetcher_read_data [NUM_FETCHERS]; // Driven by BRAM output
+fetcher_size_t fetcher_read_ready;
+instruction_t fetcher_read_data [NUM_FETCHERS];
+
+dispatcher #(
+    .NUM_CORES(NUM_CORES)
+    ) dispatcher_inst (
+    .clk(clk),
+    .reset(reset),
+    .start(start_execution),
+
+    .kernel_config(kernel_config_reg),
+
+    .core_done(core_done),
+    .core_start(core_start),
+    .core_reset(core_reset),
+    .core_block_id(core_block_id),
+
+    .done(execution_done)
+);
+
+// Data Memory Controller
+mem_controller #(
+    .DATA_WIDTH(`DATA_WIDTH),
+    .ADDRESS_WIDTH(`DATA_MEMORY_ADDRESS_WIDTH),
+    .NUM_CONSUMERS(NUM_LSUS),
+    .NUM_CHANNELS(DATA_MEM_NUM_CHANNELS)
+    ) data_memory_controller (
+        .clk(clk),
+        .reset(reset),
+
+        .consumer_read_valid(lsu_read_valid),
+        .consumer_read_address(lsu_read_address),
+        .consumer_read_ready(lsu_read_ready),
+        .consumer_read_data(lsu_read_data),
+
+        .consumer_write_valid(lsu_write_valid),
+        .consumer_write_address(lsu_write_address),
+        .consumer_write_data(lsu_write_data),
+        .consumer_write_ready(lsu_write_ready),
+
+        .mem_read_valid(data_mem_read_valid),
+        .mem_read_address(data_mem_read_address),
+        .mem_read_ready(data_mem_read_ready),
+        .mem_read_data(data_mem_read_data),
+
+        .mem_write_valid(data_mem_write_valid),
+        .mem_write_address(data_mem_write_address),
+        .mem_write_data(data_mem_write_data),
+        .mem_write_ready(data_mem_write_ready)
+    );
 
 
-// --- Data Memory Arbitration & Connection ---
-// This arbiter is designed for a SINGLE CORE (NUM_CORES=1).
-// It maps the scalar LSU to Port A and arbitrates the vector LSUs to Port B.
-// To support NUM_CORES > 1, this arbiter would need to be hierarchical.
 
-// Port A (Scalar) Logic - Direct Connection from core 0's scalar LSU
-localparam int SCALAR_LSU_IDX = SCALAR_LSU_OFFSET; // For core 0
-assign lsu_read_ready[SCALAR_LSU_IDX]  = dmem_a_en; // Ready when BRAM port is used for this request
-assign lsu_write_ready[SCALAR_LSU_IDX] = dmem_a_en;
+// Instruction Memory Controller
 
-assign dmem_a_en = lsu_read_valid[SCALAR_LSU_IDX] || lsu_write_valid[SCALAR_LSU_IDX];
-assign dmem_a_we = {`DATA_MEMORY_WE_WIDTH{lsu_write_valid[SCALAR_LSU_IDX]}};
-assign dmem_a_addr = lsu_write_valid[SCALAR_LSU_IDX] ? lsu_write_address[SCALAR_LSU_IDX] : lsu_read_address[SCALAR_LSU_IDX];
-assign dmem_a_din  = lsu_write_data[SCALAR_LSU_IDX];
+// Disconnected write wires
 
-reg dmem_a_dout_reg;
-always @(posedge clk) dmem_a_dout_reg <= dmem_a_dout;
-assign lsu_read_data[SCALAR_LSU_IDX] = dmem_a_dout_reg;
+logic [NUM_FETCHERS-1:0] d_consumer_write_valid;
+instruction_memory_address_t d_consumer_write_address [NUM_FETCHERS];
+instruction_t d_consumer_write_data [NUM_FETCHERS];
+logic [NUM_FETCHERS-1:0] d_consumer_write_ready;
 
+logic [INSTRUCTION_MEM_NUM_CHANNELS-1:0] d_mem_write_valid;
+logic [`INSTRUCTION_MEMORY_ADDRESS_WIDTH-1:0] d_mem_write_address [INSTRUCTION_MEM_NUM_CHANNELS];
+logic [`INSTRUCTION_WIDTH-1:0] d_mem_write_data [INSTRUCTION_MEM_NUM_CHANNELS];
 
-// Port B (Vector) Logic - Round-Robin Arbiter for one core's vector LSUs (indices 0 to THREADS_PER_WARP-1)
-logic [$clog2(THREADS_PER_WARP)-1:0] grant_ptr_vec = '0;
-logic [$clog2(THREADS_PER_WARP)-1:0] granted_idx_vec;
-logic grant_valid_vec;
+mem_controller #(
+    .DATA_WIDTH(`INSTRUCTION_WIDTH),
+    .ADDRESS_WIDTH(`INSTRUCTION_MEMORY_ADDRESS_WIDTH),
+    .NUM_CONSUMERS(NUM_FETCHERS),
+    .NUM_CHANNELS(INSTRUCTION_MEM_NUM_CHANNELS),
+    .WRITE_ENABLE(0)
+) program_memory_controller (
+    .clk(clk),
+    .reset(reset),
 
-always_comb begin
-    grant_valid_vec = 1'b0;
-    granted_idx_vec = grant_ptr_vec;
-    for (int i = 0; i < THREADS_PER_WARP; i = i + 1) begin
-        int current_idx = (grant_ptr_vec + i) % THREADS_PER_WARP;
-        if (lsu_read_valid[current_idx] || lsu_write_valid[current_idx]) begin
-            granted_idx_vec = current_idx;
-            grant_valid_vec = 1'b1;
-            break;
-        end
-    end
+    .consumer_read_valid(fetcher_read_valid),
+    .consumer_read_address(fetcher_read_address),
+    .consumer_read_ready(fetcher_read_ready),
+    .consumer_read_data(fetcher_read_data),
+
+    .consumer_write_valid(d_consumer_write_valid),
+    .consumer_write_address(d_consumer_write_address),
+    .consumer_write_data(d_consumer_write_data),
+    .consumer_write_ready(d_consumer_write_ready),
+
+    .mem_read_valid(instruction_mem_read_valid),
+    .mem_read_address(instruction_mem_read_address),
+    .mem_read_ready(instruction_mem_read_ready),
+    .mem_read_data(instruction_mem_read_data),
+
+    .mem_write_valid(d_mem_write_valid),
+    .mem_write_address(d_mem_write_address),
+    .mem_write_data(d_mem_write_data),
+    .mem_write_ready(0)
+);
+
+initial begin
+    $display("Hello, World!");
 end
 
-always @(posedge clk) begin
-    if (reset) grant_ptr_vec <= '0;
-    else if (grant_valid_vec) grant_ptr_vec <= granted_idx_vec + 1;
-end
-
-assign dmem_b_en = grant_valid_vec;
-assign dmem_b_we = {`DATA_MEMORY_WE_WIDTH{lsu_write_valid[granted_idx_vec]}};
-assign dmem_b_din = lsu_write_data[granted_idx_vec];
-
-data_memory_address_t vector_local_addr = lsu_write_valid[granted_idx_vec] ? lsu_write_address[granted_idx_vec] : lsu_read_address[granted_idx_vec];
-assign dmem_b_addr = THREAD_LOCAL_MEM_BASE_ADDR + (granted_idx_vec * THREAD_LOCAL_MEM_PARTITION_SIZE_WORDS) + vector_local_addr;
-
-reg dmem_b_dout_reg;
-always @(posedge clk) dmem_b_dout_reg <= dmem_b_dout;
-
-for (genvar j = 0; j < THREADS_PER_WARP; j=j+1) begin
-    assign lsu_read_ready[j]  = grant_valid_vec && (j == granted_idx_vec);
-    assign lsu_write_ready[j] = grant_valid_vec && (j == granted_idx_vec);
-    assign lsu_read_data[j] = (grant_valid_vec && (j == granted_idx_vec)) ? dmem_b_dout_reg : '0;
-end
-
-
-// --- Instruction Memory Arbitration & Connection ---
-// Simple Round-Robin Arbiter for all fetcher requests from all cores.
-logic [$clog2(NUM_FETCHERS)-1:0] grant_ptr_inst = '0;
-logic [$clog2(NUM_FETCHERS)-1:0] granted_idx_inst;
-logic grant_valid_inst;
-
-always_comb begin
-    grant_valid_inst = 1'b0;
-    granted_idx_inst = grant_ptr_inst;
-    for (int i = 0; i < NUM_FETCHERS; i = i + 1) begin
-        int current_idx = (grant_ptr_inst + i) % NUM_FETCHERS;
-        if (fetcher_read_valid[current_idx]) begin
-            granted_idx_inst = current_idx;
-            grant_valid_inst = 1'b1;
-            break;
-        end
-    end
-end
-
-always @(posedge clk) begin
-    if (reset) grant_ptr_inst <= '0;
-    else if (grant_valid_inst) grant_ptr_inst <= granted_idx_inst + 1;
-end
-
-assign imem_en = grant_valid_inst;
-assign imem_addr = fetcher_read_address[granted_idx_inst];
-
-reg imem_dout_reg;
-always @(posedge clk) imem_dout_reg <= imem_dout;
-
-for (genvar k = 0; k < NUM_FETCHERS; k=k+1) begin
-    assign fetcher_read_ready[k] = grant_valid_inst && (k == granted_idx_inst);
-    assign fetcher_read_data[k] = (grant_valid_inst && (k == granted_idx_inst)) ? imem_dout_reg : '0;
-end
-
-
-// --- Compute Core Instantiation ---
-// This block instantiates the compute cores and connects their memory request
-// ports to the flattened buses that are handled by the arbiters above.
+// Compute Cores
 generate
     for (genvar i = 0; i < NUM_CORES; i = i + 1) begin : g_cores
-        
-        // --- Define the base index for this core's signals in the flat arrays ---
-        localparam lsu_base_idx = i * NUM_LSUS_PER_CORE;
-        localparam fetcher_base_idx = i * WARPS_PER_CORE;
+        // EDA: We create separate signals here to pass to cores because of a requirement
+        // by the OpenLane EDA flow (uses Verilog 2005) that prevents slicing the top-level signals
+        logic [NUM_LSUS_PER_CORE-1:0] core_lsu_read_valid;
+        data_memory_address_t core_lsu_read_address [NUM_LSUS_PER_CORE];
+        logic [NUM_LSUS_PER_CORE-1:0] core_lsu_read_ready;
+        data_t core_lsu_read_data [NUM_LSUS_PER_CORE];
+        logic [NUM_LSUS_PER_CORE-1:0] core_lsu_write_valid;
+        data_memory_address_t core_lsu_write_address [NUM_LSUS_PER_CORE];
+        data_t core_lsu_write_data [NUM_LSUS_PER_CORE];
+        logic [NUM_LSUS_PER_CORE-1:0] core_lsu_write_ready;
 
-        // --- Instantiate the actual compute core ---
+        // Pass through signals between LSUs and data memory controller
+        genvar j;
+        for (j = 0; j < NUM_LSUS_PER_CORE; j = j + 1) begin : g_lsu_connect
+            localparam lsu_index = i * NUM_LSUS_PER_CORE + j;
+            always @(posedge clk) begin
+                lsu_read_valid[lsu_index] <= core_lsu_read_valid[j];
+                lsu_read_address[lsu_index] <= core_lsu_read_address[j];
+
+                lsu_write_valid[lsu_index] <= core_lsu_write_valid[j];
+                lsu_write_address[lsu_index] <= core_lsu_write_address[j];
+                lsu_write_data[lsu_index] <= core_lsu_write_data[j];
+
+                core_lsu_read_ready[j] <= lsu_read_ready[lsu_index];
+                core_lsu_read_data[j] <= lsu_read_data[lsu_index];
+                core_lsu_write_ready[j] <= lsu_write_ready[lsu_index];
+            end
+        end
+
+        localparam fetcher_index = i * WARPS_PER_CORE;
+
+        // Compute Core
         compute_core #(
             .WARPS_PER_CORE(WARPS_PER_CORE),
             .THREADS_PER_WARP(THREADS_PER_WARP)
         ) core_instance (
             .clk(clk),
             .reset(core_reset[i]),
+
             .start(core_start[i]),
             .done(core_done[i]),
+
             .block_id(core_block_id[i]),
             .kernel_config(kernel_config_reg),
 
-            // --- Instruction Memory Connections ---
-            // Connect the core's array of fetcher requests to its slice of the flat bus
-            .instruction_mem_read_valid(fetcher_read_valid[fetcher_base_idx +: WARPS_PER_CORE]),
-            .instruction_mem_read_address(fetcher_read_address[fetcher_base_idx +: WARPS_PER_CORE]),
-            // Connect the arbiter's grant/data signals back to the core's slice
-            .instruction_mem_read_ready(fetcher_read_ready[fetcher_base_idx +: WARPS_PER_CORE]),
-            .instruction_mem_read_data(fetcher_read_data[fetcher_base_idx +: WARPS_PER_CORE]),
+            .instruction_mem_read_valid(fetcher_read_valid[fetcher_index +: WARPS_PER_CORE]),
+            .instruction_mem_read_address(fetcher_read_address[fetcher_index +: WARPS_PER_CORE]),
+            .instruction_mem_read_ready(fetcher_read_ready[fetcher_index +: WARPS_PER_CORE]),
+            .instruction_mem_read_data(fetcher_read_data[fetcher_index +: WARPS_PER_CORE]),
 
-            // --- Data Memory Connections ---
-            // Connect the core's array of LSU requests to its slice of the flat bus
-            .data_mem_read_valid(lsu_read_valid[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            .data_mem_read_address(lsu_read_address[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            .data_mem_write_valid(lsu_write_valid[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            .data_mem_write_address(lsu_write_address[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            .data_mem_write_data(lsu_write_data[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            // Connect the arbiter's grant/data signals back to the core's slice
-            .data_mem_read_ready(lsu_read_ready[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            .data_mem_read_data(lsu_read_data[lsu_base_idx +: NUM_LSUS_PER_CORE]),
-            .data_mem_write_ready(lsu_write_ready[lsu_base_idx +: NUM_LSUS_PER_CORE])
+            .data_mem_read_valid(core_lsu_read_valid),
+            .data_mem_read_address(core_lsu_read_address),
+            .data_mem_read_ready(core_lsu_read_ready),
+            .data_mem_read_data(core_lsu_read_data),
+            .data_mem_write_valid(core_lsu_write_valid),
+            .data_mem_write_address(core_lsu_write_address),
+            .data_mem_write_data(core_lsu_write_data),
+            .data_mem_write_ready(core_lsu_write_ready)
         );
     end
 endgenerate
+
 
 endmodule
