@@ -3,12 +3,6 @@
 # This script runs the testbench
 # Usage: ./doit.sh <file1.cpp> <file2.cpp>
 
-cd ..
-g++ -std=c++17 -o assembler/assembler assembler/assembler.cpp
-./assembler/assembler
-cd tb/
-clear
-
 # Constants
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 TEST_FOLDER=$(realpath "$SCRIPT_DIR/test/tmp_test")

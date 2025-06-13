@@ -1,5 +1,8 @@
 # Vivado Integration notes -> For Report mainly
 
+
+Question for Gemini: My GPU is word addressable as you can see with gpu.sv, would this be an issue with the current mcu.sv and Vivado AXI is byte addressable.
+
 ## 1. Refactor GPU pipeline for BRAM Access
 
 Objective: To adapt the existing multi-channel, generic memory design into a single-channel, memory-mapped system suitable for implementation with on-chip BRAMs on an FPGA.
