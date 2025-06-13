@@ -6,8 +6,6 @@ import numpy as np
 import subprocess
 import ui_virtual_mouse 
 
-# weird code from neil
-
 
 
 
