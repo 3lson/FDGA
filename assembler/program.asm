@@ -1,6 +1,6 @@
-v.add v1, x29, zero
-v.li v2, 8
-sx.slt s1, v1, v2
-s.li s10, 42
-s.sw s1, 0(s10)
+s.li s5, 42
+s.li s1, 10
+s.li s2, 10
+s.add s3, s1, s2
+s.sw s3, 0(s5)
 exit
