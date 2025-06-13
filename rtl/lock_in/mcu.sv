@@ -242,7 +242,7 @@ module mcu #(
 
             // --- Clear the processed requests from the buffer ---
             // This happens AFTER a burst is fully complete
-            if ((state == WAIT_WRITE_RESP && m_axi_bvalid) ||
+            if ((state == ISSUE_ADDR_CMD && m_axi_bvalid) ||
                 (state == READ_DATA_BURST && m_axi_rvalid && m_axi_rlast)) begin
                 for (int i = 0; i < burst_len_count; i++) begin
                     req_valid[burst_start_idx + i] <= 1'b0;
@@ -257,8 +257,11 @@ module mcu #(
             // end
 
             // --- Latch incoming read data and signal ready to the specific consumer ---
+            $display("m_axi_rvalid: ", m_axi_rvalid);
+            $display("READ_DATA_BURST On: ", state == READ_DATA_BURST);
             if (state == READ_DATA_BURST && m_axi_rvalid) begin
                 int current_thread_idx = burst_start_idx + burst_data_counter;
+                $display("consumer_read_data written: ", consumer_read_data[current_thread_idx]);
                 consumer_read_data[current_thread_idx] <= m_axi_rdata;
                 consumer_read_ready[current_thread_idx] <= 1'b1;
             end
