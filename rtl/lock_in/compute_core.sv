@@ -32,7 +32,8 @@ module compute_core#(
     output  logic   [NUM_LSUS-1:0]          data_mem_write_valid,
     output  data_memory_address_t           data_mem_write_address          [NUM_LSUS],
     output  data_t                          data_mem_write_data             [NUM_LSUS],
-    input   logic   [NUM_LSUS-1:0]          data_mem_write_ready
+    input   logic   [NUM_LSUS-1:0]          data_mem_write_ready,
+    output logic                            start_mcu_transaction
 );
 
 typedef logic [THREADS_PER_WARP-1:0] warp_mask_t;
@@ -95,6 +96,7 @@ instruction_memory_address_t sync_pc [WARPS_PER_CORE];
 assign sync_active = |sync_reached;
 
 logic all_warps_done = 1'b1;
+logic any_lsu_waiting;
 
 // ALU/LSU Operands and Results
 data_t final_op1 [THREADS_PER_WARP];
@@ -169,6 +171,7 @@ always @(posedge clk) begin
         //$display("Resetting core %0d", block_id);
         start_execution <= 0;
         done <= 0;
+        start_mcu_transaction <= 1'b0;
         for (int i = 0; i < WARPS_PER_CORE; i = i + 1) begin
             warp_state[i] <= WARP_IDLE;
             fetcher_state[i] <= FETCHER_IDLE;
@@ -287,9 +290,11 @@ always @(posedge clk) begin
             WARP_REQUEST: begin
                 // takes one cycle cause we are just changing the LSU state
                 warp_state[current_warp] <= WARP_WAIT;
+                start_mcu_transaction <= 1'b1;
             end
             WARP_WAIT: begin
-                reg any_lsu_waiting = 1'b0;
+                start_mcu_transaction <= 1'b0;
+                any_lsu_waiting = 1'b0;
                 for (int i = 0; i < THREADS_PER_WARP; i++) begin
                     // Make sure no lsu_state = REQUESTING or WAITING
                     if (lsu_state[i] == LSU_REQUESTING || lsu_state[i] == LSU_WAITING) begin

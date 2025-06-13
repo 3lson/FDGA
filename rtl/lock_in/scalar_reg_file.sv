@@ -90,6 +90,7 @@ always @(posedge clk) begin
                     PC_PLUS_1:  registers[decoded_rd_address] <= pc + 1;
                     VECTOR_TO_SCALAR: begin
                         $display("Scalar Reg File: Writing vector_to_scalar_data to register %d", decoded_rd_address);
+                        // $display("vector_to_scalar_data: ", vector_to_scalar_data);
                         registers[decoded_rd_address] <= vector_to_scalar_data;
                     end
                     default: $error("Invalid decoded_reg_input_mux value");
