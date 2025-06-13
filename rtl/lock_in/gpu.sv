@@ -80,11 +80,6 @@ module gpu #(
     logic [31:0] m_axi_awaddr, m_axi_araddr, m_axi_wdata, m_axi_rdata;
     logic m_axi_awvalid, m_axi_wvalid, m_axi_arvalid;
     logic m_axi_bvalid_to_mcu, m_axi_rvalid_to_mcu;
-
-    always_comb begin
-        $display("Trying to write to MCU Addr: ", lsu_write_address);
-        $display("Trying to write to MCU Data: ", lsu_write_data);
-    end
     
     mcu #(
         .THREADS_PER_WARP(THREADS_PER_WARP)

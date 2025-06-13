@@ -130,12 +130,9 @@ always_comb begin
         2'b11: {scalar_op1, scalar_op2} = {scalar_float_rs1[current_warp], scalar_float_rs2[current_warp]};
         default: {scalar_op1, scalar_op2} = {scalar_int_rs1[current_warp], scalar_int_rs2[current_warp]};
     endcase
+    $display("data_mem_read_valid: ", data_mem_read_valid);
+    $display("data_mem_read_valid: ", data_mem_read_valid);
 end
-
-//Generate Muxing logic for each of the Vector SIMT lanes
-// DELETE the entire old `g_operand_mux` generate block.
-
-// REPLACE it with this:
 
 //Generate Muxing logic for each of the Vector SIMT lanes
 generate
