@@ -226,7 +226,7 @@ always @(posedge clk) begin
             // Release all warps from the sync barrier
             for (int i = 0; i < num_warps; i++) begin
                 if (warp_state[i] == WARP_SYNC_WAIT) begin
-                    warp_state[i] <= WARP_UPDATE;
+                    warp_state[i] = WARP_UPDATE;
                 end
             end
             

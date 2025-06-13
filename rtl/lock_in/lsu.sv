@@ -62,6 +62,7 @@ always @(posedge clk) begin
         mem_write_data <= 0;
     end else if (enable) begin
         // If memory read enable is triggered (LDR instruction)
+        $display("decoded_mem_read_enable: ", decoded_mem_read_enable);
         if (decoded_mem_read_enable) begin 
             //$display("LSU_State: ", lsu_state);
             case (lsu_state)
@@ -77,8 +78,10 @@ always @(posedge clk) begin
                     lsu_state <= LSU_WAITING;
                 end
                 LSU_WAITING: begin
+                    $display("we reach LSU waiting");
+                    $display("mem_read_ready: ", mem_read_ready);
                     if (mem_read_ready == 1) begin
-                        // $display("LSU: Reading %d from memory address %d", mem_read_data, offset_address);
+                        $display("LSU: Reading %d from memory address %d", mem_read_data, offset_address);
                         mem_read_valid <= 0;
                         lsu_out <= mem_read_data;
                         lsu_state <= LSU_DONE;
