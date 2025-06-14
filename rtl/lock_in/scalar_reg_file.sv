@@ -49,9 +49,11 @@ always_comb begin
         rs2 = (decoded_rs2_address == ZERO_REG) ? {DATA_WIDTH{1'b0}} : registers[decoded_rs2_address];
     end
 end
-// always_comb begin
-//     $display("RS1, RS2 from scalar_reg ", rs1, rs2);
-// end
+always_comb begin
+    // $display("RS1, RS2 from scalar_reg ", rs1, rs2);
+    // $display("Check s1: ", registers[6]);
+    // $display("Check s2: ", registers[7]);
+end
 
 // Register file: each warp has its own set of 32 registers
 

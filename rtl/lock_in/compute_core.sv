@@ -130,8 +130,7 @@ always_comb begin
         2'b11: {scalar_op1, scalar_op2} = {scalar_float_rs1[current_warp], scalar_float_rs2[current_warp]};
         default: {scalar_op1, scalar_op2} = {scalar_int_rs1[current_warp], scalar_int_rs2[current_warp]};
     endcase
-    $display("data_mem_read_valid: ", data_mem_read_valid);
-    $display("data_mem_read_valid: ", data_mem_read_valid);
+    //$display("data_mem_read_valid: ", data_mem_read_valid);
 end
 
 //Generate Muxing logic for each of the Vector SIMT lanes
@@ -220,19 +219,19 @@ always @(posedge clk) begin
         end
 
         // If all active warps have synchronized, release them all AT ONCE.
-        if (all_warps_synced) begin
-            $display("Block: %0d: All warps synchronized, releasing barrier", block_id);
+        // if (all_warps_synced) begin
+        //     $display("Block: %0d: All warps synchronized, releasing barrier", block_id);
             
-            // Release all warps from the sync barrier
-            for (int i = 0; i < num_warps; i++) begin
-                if (warp_state[i] == WARP_SYNC_WAIT) begin
-                    warp_state[i] = WARP_UPDATE;
-                end
-            end
+        //     // Release all warps from the sync barrier
+        //     for (int i = 0; i < num_warps; i++) begin
+        //         if (warp_state[i] == WARP_SYNC_WAIT) begin
+        //             warp_state[i] = WARP_UPDATE;
+        //         end
+        //     end
             
-            // Clear the barrier state
-            sync_reached <= '0;
-        end
+        //     // Clear the barrier state
+        //     sync_reached <= '0;
+        // end
 
         // In parallel, check if fetchers are done, and if so, move to decode
         for (int i = 0; i < num_warps; i = i + 1) begin
@@ -261,7 +260,7 @@ always @(posedge clk) begin
         || current_warp_state == WARP_WAIT || current_warp_state == WARP_SYNC_WAIT) begin
             int next_warp = (current_warp + 1) % num_warps;
             int found_warp = -1;
-            $display("Block: %0d: Choosing next warp", block_id);
+            // $display("Block: %0d: Choosing next warp", block_id);
             for (int i = 0; i < WARPS_PER_CORE; i = i + 1) begin
                 int warp_index = (next_warp + i) % num_warps;
                 if ((warp_state[warp_index] != WARP_IDLE) && (warp_state[warp_index] != WARP_FETCH) && (warp_state[warp_index] != WARP_DONE)) begin
@@ -288,42 +287,47 @@ always @(posedge clk) begin
             WARP_DECODE: begin
                 // decoding takes one cycle
                 warp_state[current_warp] <= WARP_REQUEST;
+                // $display("Check Warp Req: ", warp_state[current_warp]);
             end
             WARP_REQUEST: begin
-
-                if (decoded_mem_read_enable_per_warp[current_warp] || decoded_mem_write_enable_per_warp[current_warp]) begin
-                        warp_state[current_warp] <= WARP_WAIT;
-                    end else begin
-                        // Not a memory op, so no need to wait for the MCU.
-                        warp_state[current_warp] <= WARP_EXECUTE;
-                    end
-                end
+                // if (decoded_mem_read_enable_per_warp[current_warp] || decoded_mem_write_enable_per_warp[current_warp]) begin
+                //         warp_state[current_warp] <= WARP_WAIT;
+                //     end else begin
+                //         // Not a memory op, so no need to wait for the MCU.
+                //         warp_state[current_warp] <= WARP_EXECUTE;
+                //     end
+                // end
                 // takes one cycle cause we are just changing the LSU state
                 // if (decoded_mem_read_enable_per_warp[current_warp] || decoded_mem_write_enable_per_warp[current_warp]) begin
                 //     // We have a memory op! Pulse the start signal for the MCU for one cycle.
                 //     start_mcu_transaction <= 1'b1;
                 // end
                 // Always transition to WAIT after this stage.
-            //     warp_state[current_warp] <= WARP_WAIT;
-            // end
+                $display("In warp request");
+                warp_state[current_warp] <= WARP_WAIT;
+            end
             WARP_WAIT: begin
-                // any_lsu_waiting = 1'b0;
-                // for (int i = 0; i < THREADS_PER_WARP; i++) begin
-                //     // Make sure no lsu_state = REQUESTING or WAITING
-                //     if (lsu_state[i] == LSU_REQUESTING || lsu_state[i] == LSU_WAITING) begin
-                //         any_lsu_waiting = 1'b1;
-                //         break;
-                //     end
-                // end
+                //$display("WARP_WAIT");
+                any_lsu_waiting = 1'b0;
+                for (int i = 0; i < THREADS_PER_WARP; i++) begin
+                    // Make sure no lsu_state = REQUESTING or WAITING
+                    if (lsu_state[i] == LSU_REQUESTING || lsu_state[i] == LSU_WAITING) begin
+                        // $display("Stuck in vector");
+                        any_lsu_waiting = 1'b1;
+                        break;
+                    end
+                end
+                //$display("LSU_REQUESTING: ", scalar_lsu_state == LSU_REQUESTING);
+                // $display("LSU_WAIT: ", scalar_lsu_state == LSU_WAITING);
+                if (scalar_lsu_state == LSU_REQUESTING || scalar_lsu_state == LSU_WAITING) begin
+                    // $display("Stuck in scalar");
+                    any_lsu_waiting = 1'b1;
+                end
 
-                // if (scalar_lsu_state == LSU_REQUESTING || scalar_lsu_state == LSU_WAITING) begin
-                //     any_lsu_waiting = 1'b1;
-                // end
-
-                // // If no LSU is waiting for a response, move onto the next stage
-                // if (!any_lsu_waiting) begin
-                //     warp_state[current_warp] <= WARP_EXECUTE;
-                // end
+                // If no LSU is waiting for a response, move onto the next stage
+                if (!any_lsu_waiting) begin
+                    warp_state[current_warp] <= WARP_EXECUTE;
+                end
 
                 if (!mcu_is_busy) begin
                     warp_state[current_warp] <= WARP_EXECUTE;
@@ -387,36 +391,36 @@ always @(posedge clk) begin
                     end
                 end
             end
-            WARP_SYNC_WAIT: begin
-                // Check if all active warps have reached the sync barrier
-                logic all_warps_synced = 1'b1;
-                $display("Waiting for SYNC");
+            // WARP_SYNC_WAIT: begin
+            //     // Check if all active warps have reached the sync barrier
+            //     logic all_warps_synced = 1'b1;
+            //     $display("Waiting for SYNC");
                 
-                for (int i = 0; i < num_warps; i++) begin
-                    // Only consider warps that are not DONE or IDLE
-                    if ((warp_state[i] != WARP_DONE) && (warp_state[i] != WARP_IDLE)) begin
-                        if (!sync_reached[i]) begin
-                            all_warps_synced = 1'b0;
-                            break;
-                        end
-                    end
-                end
+            //     // for (int i = 0; i < num_warps; i++) begin
+            //     //     // Only consider warps that are not DONE or IDLE
+            //     //     if ((warp_state[i] != WARP_DONE) && (warp_state[i] != WARP_IDLE)) begin
+            //     //         if (!sync_reached[i]) begin
+            //     //             all_warps_synced = 1'b0;
+            //     //             break;
+            //     //         end
+            //     //     end
+            //     // end
                 
-                if (all_warps_synced) begin
-                    $display("Block: %0d: All warps synchronized, releasing barrier", block_id);
+            //     // if (all_warps_synced) begin
+            //     //     $display("Block: %0d: All warps synchronized, releasing barrier", block_id);
                     
-                    // Release all warps from sync barrier
-                    for (int i = 0; i < num_warps; i++) begin
-                        if (warp_state[i] == WARP_SYNC_WAIT) begin
-                            // Use non-blocking assignment for state updates
-                            warp_state[i] = WARP_UPDATE;
-                        end
-                    end
+            //     //     // Release all warps from sync barrier
+            //     //     for (int i = 0; i < num_warps; i++) begin
+            //     //         if (warp_state[i] == WARP_SYNC_WAIT) begin
+            //     //             // Use non-blocking assignment for state updates
+            //     //             warp_state[i] = WARP_UPDATE;
+            //     //         end
+            //     //     end
                     
-                    // Clear sync barrier state
-                    sync_reached <= '0;
-                end
-            end
+            //     //     // Clear sync barrier state
+            //     //     sync_reached <= '0;
+            //     // end
+            // end
 
             WARP_UPDATE: begin
                 if (decoded_halt[current_warp]) begin
@@ -684,7 +688,9 @@ always_comb begin
     // $display("Scalar LSU Out: ", scalar_lsu_out);
     //$display("scalar alu out: ", scalar_alu_out);
     //$display("decoded alu instr: ", decoded_alu_instruction[current_warp]);
-    
+
+    // $display("data_mem_write_valid: ", data_mem_write_valid[THREADS_PER_WARP]);
+
 end
 
 

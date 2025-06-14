@@ -33,7 +33,9 @@ module gpu #(
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
     input logic data_mem_write_ready
 );
-
+    // initial begin
+    //     $display("data_mem_read_ready: ", data_mem_read_ready);
+    // end
     // --- Dispatcher and Core management signals (unchanged) ---
     kernel_config_t kernel_config_reg;
     logic start_execution;
@@ -43,6 +45,15 @@ module gpu #(
     data_t core_block_id [NUM_CORES];
     logic core_start_mcu_transaction;
     logic mcu_busy;
+
+    assign data_mem_write_address[0] = m_axi_awaddr;
+    assign data_mem_write_data[0]    = m_axi_wdata;
+    assign data_mem_write_valid      = m_axi_awvalid | m_axi_wvalid;
+    assign m_axi_bvalid_to_mcu       = data_mem_write_ready; 
+    assign data_mem_read_address[0]  = m_axi_araddr;
+    assign m_axi_rdata               = data_mem_read_data[0];
+    assign data_mem_read_valid       = m_axi_arvalid;
+    assign m_axi_rvalid_to_mcu       = data_mem_read_ready;
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -76,7 +87,6 @@ module gpu #(
     data_t                        lsu_write_data [NUM_LSUS_PER_CORE];
     logic [NUM_LSUS_PER_CORE-1:0] lsu_write_ready;
     
-    // --- AXI Bridge Wires (unchanged) ---
     logic [31:0] m_axi_awaddr, m_axi_araddr, m_axi_wdata, m_axi_rdata;
     logic m_axi_awvalid, m_axi_wvalid, m_axi_arvalid;
     logic m_axi_bvalid_to_mcu, m_axi_rvalid_to_mcu;
@@ -107,14 +117,7 @@ module gpu #(
     );
 
     // Simplified connection logic from MCU to top-level memory ports (unchanged)
-    assign data_mem_write_address[0] = m_axi_awaddr;
-    assign data_mem_write_data[0]    = m_axi_wdata;
-    assign data_mem_write_valid      = m_axi_awvalid | m_axi_wvalid;
-    assign m_axi_bvalid_to_mcu       = data_mem_write_ready; 
-    assign data_mem_read_address[0]  = m_axi_araddr;
-    assign m_axi_rdata               = data_mem_read_data[0];
-    assign data_mem_read_valid       = m_axi_arvalid;
-    assign m_axi_rvalid_to_mcu       = data_mem_read_ready;
+    
 
     // --- Core Instantiation ---
     logic [WARPS_PER_CORE-1:0] fetcher_read_valid_core;
@@ -127,6 +130,12 @@ module gpu #(
     assign fetcher_read_ready_core = instruction_mem_read_ready;
     assign fetcher_read_data_core = instruction_mem_read_data;
 
+    always_comb begin 
+        $display("lsu_read_data in gpu: ", lsu_read_data[16]);
+        $display("lsu_read address in gpu: ", lsu_read_address[THREADS_PER_WARP]);
+        $display("lsu_write_data in gpu: ", lsu_write_data[16]);
+        $display("lsu write address in gpu: ", lsu_write_address[THREADS_PER_WARP]);
+    end
     compute_core #(
         .WARPS_PER_CORE(WARPS_PER_CORE),
         .THREADS_PER_WARP(THREADS_PER_WARP)

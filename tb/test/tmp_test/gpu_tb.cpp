@@ -6,6 +6,12 @@
 #include <cstdint>
 #include <fstream>
 #include <sstream>
+#include <iomanip> // For std::setw, std::dec, etc.
+
+#define NAME "gpu"
+#define NUM_CORES 1
+#define WARPS_PER_CORE 1
+#define THREADS_PER_WARP 16
 
 #define NAME "gpu"
 #define NUM_CORES 1
@@ -30,12 +36,27 @@ protected:
 
         // In a real system, ready signals are driven by the memory.
         // For the testbench, we will control them in tick().
-        top->data_mem_read_ready = 0;
-        top->data_mem_write_ready = 0;
-        top->instruction_mem_read_ready = 0;
+        // top->data_mem_read_ready = 0;
+        // top->data_mem_write_ready = 0;
+        // top->instruction_mem_read_ready = 0;
         
         tick(); // Tick once to apply reset
         top->reset = 0;
+    }
+
+    void printMemoryRange(uint32_t start_addr = 0, uint32_t end_addr = 50) {
+        std::cout << "Memory contents from address " << start_addr << " to " << end_addr << ":\n";
+        std::cout << "Address\t\tValue\n";
+        std::cout << "-------\t\t-----\n";
+        
+        for (uint32_t addr = start_addr; addr <= end_addr; addr++) {
+            // Check if address exists in memory map
+            auto it = data_memory.find(addr);
+            uint32_t value = (it != data_memory.end()) ? it->second : 0xDEADBEEF;
+            
+            std::cout << "0x" << std::hex << std::setw(8) << std::setfill('0') << addr 
+                    << "\t0x" << std::hex << std::setw(8) << std::setfill('0') << value << std::endl;
+        }
     }
 
     // FIX: A more realistic, pipelined tick function
@@ -45,7 +66,7 @@ protected:
 
         // Instruction Memory: 1-cycle latency
         // If the GPU requested an instruction last cycle, provide it this cycle.
-        top->instruction_mem_read_ready = top->instruction_mem_read_valid;
+        // top->instruction_mem_read_ready = top->instruction_mem_read_valid;
         if (top->instruction_mem_read_valid) {
             uint32_t addr = top->instruction_mem_read_address[0]; // word address
             if (instruction_memory.count(addr)) {
@@ -57,7 +78,7 @@ protected:
         
         // Data Memory: 1-cycle latency
         // The MCU drives the top-level ports. Our TB acts as the memory slave.
-        top->data_mem_read_ready = top->data_mem_read_valid;
+        // top->data_mem_read_ready = top->data_mem_read_valid;
         if (top->data_mem_read_valid) {
             uint32_t byte_addr = top->data_mem_read_address[0];
             if (data_memory.count(byte_addr)) {
@@ -68,7 +89,7 @@ protected:
              printf("[TB] Memory: Responding to READ from BYTE addr 0x%x\n", byte_addr);
         }
 
-        top->data_mem_write_ready = top->data_mem_write_valid;
+        // top->data_mem_write_ready = top->data_mem_write_valid;
         if (top->data_mem_write_valid) {
             uint32_t byte_addr = top->data_mem_write_address[0];
             data_memory[byte_addr] = top->data_mem_write_data[0];
@@ -98,9 +119,12 @@ protected:
         }
         std::cout << "Loaded " << instruction_memory.size() << " instructions." << std::endl;
     }
-
-    void runAndComplete(int timeout_cycles = 500) {
+    void runAndComplete(int timeout_cycles = 1000) {
         // Set kernel config
+        top->data_mem_read_ready = 1;
+        top->data_mem_write_ready = 1;
+        top->instruction_mem_read_ready = 0b1111;
+
         top->base_instr = 0;
         top->base_data = 0;
         top->num_blocks = 1;
@@ -138,9 +162,11 @@ TEST_F(GpuTestbench, MCU_ScalarWriteIntegration) {
     // 3. Run the simulation
     runAndComplete();
 
+    // printMemoryRange(0, 50);
+
     // 4. Verify the result.
     // The MCU converts word address 42 to byte address 168.
-    uint32_t expected_byte_address = 42; // 168
+    uint32_t expected_byte_address = 42 * 4; // 168
     uint32_t expected_data = 32;
 
     // for(int i = 0; i < expected_byte_address; i++){

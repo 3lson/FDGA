@@ -51,10 +51,26 @@ module mcu #(
     input  logic [C_M_AXI_ID_WIDTH-1:0]      m_axi_rid,
     input  logic [C_M_AXI_DATA_WIDTH-1:0]    m_axi_rdata,
     input  logic [1:0]                       m_axi_rresp,
-    input  logic                             m_axi_rlast,
     input  logic                             m_axi_rvalid,
     output logic                             m_axi_rready
 );
+
+function logic calc_remaining_requests(
+    logic [THREADS_PER_WARP:0] current_req_valid,
+    logic [$clog2(THREADS_PER_WARP+1)-1:0] start_idx,
+    logic [7:0] len_count
+);
+    logic [THREADS_PER_WARP:0] temp_valid;
+    temp_valid = current_req_valid;
+    
+    for (int i=0; i < len_count; i++) begin
+        if ((start_idx + i) <= THREADS_PER_WARP) begin
+            temp_valid[start_idx + i] = 1'b0;
+        end
+    end
+    
+    return |temp_valid;
+endfunction
 
     localparam int SCALAR_LSU_IDX = THREADS_PER_WARP;
     localparam BYTES_PER_WORD = C_M_AXI_DATA_WIDTH / 8;
@@ -81,12 +97,19 @@ module mcu #(
     
     //logic transaction_started;
     
-    logic any_remaining_requests_after_burst;
-    logic  [THREADS_PER_WARP:0] req_valid_after_clear;
+    // logic any_remaining_requests_after_burst;
+    // logic  [THREADS_PER_WARP:0] req_valid_after_clear;
     
     assign mcu_is_busy = (state != IDLE);
 
     always_comb begin
+        // $display("consumer_write_valid[i] always_comb: ", consumer_write_valid[16]);
+        // $display("consumer_write_data[i] always_comb: ", consumer_write_data[16]);
+        // $display("consumer_write_address[i] always_comb: ", consumer_write_address[16]);
+
+        // $display("consumer_read_valid[i] always_comb: ", consumer_read_valid[16]);
+        // $display("consumer_read_data[i] always_comb: ", consumer_read_data[16]);
+        // $display("consumer_read_address[i] always_comb: ", consumer_read_address[16]);
         // --- Defaults ---
         next_state = state;
         m_axi_awvalid = 1'b0; m_axi_arvalid = 1'b0; m_axi_wvalid = 1'b0;
@@ -98,31 +121,38 @@ module mcu #(
         m_axi_arsize  = $clog2(BYTES_PER_WORD); m_axi_arburst = 2'b01; // 32-bit, INCR
         m_axi_wstrb   = '1; // Write all bytes
         
-        for (int i=0; i<=THREADS_PER_WARP; i++) begin 
-            req_valid_after_clear[i] = req_valid[i];
-        end
+        // for (int i=0; i<=THREADS_PER_WARP; i++) begin 
+        //     req_valid_after_clear[i] = req_valid[i];
+        // end
+
+        // for (int i=0; i<=THREADS_PER_WARP; i++) begin 
+        //     $display("consumer_write_valid: ", consumer_write_valid[i]);
+        // end
 
         // Debug print for the read data test
         //$display("Value loaded in", consumer_read_data[16]);
         
         // Predictively clear the requests that are part of the *current* burst
-        for (int i=0; i < burst_len_count; i++) begin
-            req_valid_after_clear[burst_start_idx + i] = 1'b0;
-        end
-        // Check if any bit is still set after the predictive clear
-        any_remaining_requests_after_burst = |req_valid_after_clear;
+        // for (int i=0; i < burst_len_count; i++) begin
+        //     req_valid_after_clear[burst_start_idx + i] = 1'b0;
+        // end
+        // // Check if any bit is still set after the predictive clear
+        // any_remaining_requests_after_burst = |req_valid_after_clear;
 
         // --- FSM ---
         case(state)
-            IDLE:
+            IDLE: begin
                 // if (start_mcu_transaction && !transaction_started) begin
                 //     $display("MCU: IDLE -> PROCESS_SCALAR");
                 //     next_state = PROCESS_SCALAR;
                 // end
+                // $display("consumer_read_valid", consumer_read_valid);
+                // $display("|consumer_write_valid", |consumer_write_valid);
                 if(|consumer_read_valid || |consumer_write_valid) begin
                     $display("MCU: IDLE -> PROCESS_SCALAR");
                     next_state = PROCESS_SCALAR;
                 end
+            end
 
             PROCESS_SCALAR:
                 if (req_valid[SCALAR_LSU_IDX]) begin
@@ -144,6 +174,9 @@ module mcu #(
             ISSUE_ADDR_CMD: begin
                 // MCU addresses are WORD addresses, AXI needs BYTE addresses
                 data_memory_address_t byte_addr = req_addr[burst_start_idx] * BYTES_PER_WORD;
+                // $display("burst_start_idx: ", burst_start_idx);
+                // $display("req_is_write[burst_start_idx]: ", req_is_write[burst_start_idx]);
+                // $display("m_axi_awready: ", m_axi_awready);
                 if (req_is_write[burst_start_idx]) begin
                     m_axi_awvalid = 1'b1; 
                     m_axi_awaddr = byte_addr; 
@@ -164,6 +197,11 @@ module mcu #(
             end
 
             WRITE_DATA_BURST: begin
+                // $display("m_axi_wready: ", m_axi_wready);
+                // $display("m_axi_wlast: ", m_axi_wlast);
+                // $display("m_axi_wdata: ", m_axi_wdata);
+                // $display("burst_len_count: ", burst_len_count);
+                // $display("burst_data_counter: ", burst_data_counter);
                 m_axi_wvalid = 1'b1; m_axi_wdata = req_wdata[burst_start_idx + burst_data_counter];
                 m_axi_wlast = (burst_data_counter == burst_len_count - 1);
                 if (m_axi_wready && m_axi_wlast) begin
@@ -175,7 +213,7 @@ module mcu #(
             WAIT_WRITE_RESP: begin
                 m_axi_bready = 1'b1;
                 if (m_axi_bvalid) begin
-                    if (any_remaining_requests_after_burst) begin
+                    if (calc_remaining_requests(req_valid, burst_start_idx, burst_len_count)) begin
                         $display("MCU: WAIT_WRITE_RESP -> PROCESS_SCALAR");
                         next_state = PROCESS_SCALAR; // Go check for more work
                     end else begin
@@ -187,9 +225,11 @@ module mcu #(
             
             READ_DATA_BURST: begin
                 m_axi_rready = 1'b1;
-                if (m_axi_rvalid && m_axi_rlast) begin
+                // $display("m_axi_rvalid: ", m_axi_rvalid);
+                // $display("any_remaining_requests_after_burst: ", any_remaining_requests_after_burst);
+                if (m_axi_rvalid) begin
                     // --- SOLUTION: Use the PREDICTED value to decide the next state ---
-                    if (any_remaining_requests_after_burst) begin
+                    if (calc_remaining_requests(req_valid, burst_start_idx, burst_len_count)) begin
                         $display("MCU: READ_DATA_BURST -> PROCESS_SCALAR");
                         next_state = PROCESS_SCALAR; // Go check for more work
                     end else begin
@@ -203,6 +243,8 @@ module mcu #(
 
     // --- Sequential Logic ---
     always_ff @(posedge clk or posedge reset) begin
+        $display("state: ", state);
+        $display("next state: ", next_state);
         if (reset) begin
             state <= IDLE;
             req_valid <= '0;
@@ -213,6 +255,7 @@ module mcu #(
             //transaction_started <= 1'b0;
         end else begin
             state <= next_state;
+            $display("where did [16] go: ", consumer_write_valid[16]);
 
             // FIXED: Clear consumer_write_ready at the beginning of each cycle
             // unless we're specifically setting it this cycle
@@ -224,18 +267,14 @@ module mcu #(
                 //transaction_started <= 1'b1;  // FIXED: Set transaction flag when starting
                 for (int i=0; i<=THREADS_PER_WARP; i++) begin
                     if (consumer_read_valid[i] || consumer_write_valid[i]) begin
+                        $display("consumer_write_valid[i] part 2: ", consumer_write_valid[i]);
+                        $display("consumer_write_data[i]: ", consumer_write_data[i]);
+                        $display("consumer_write_address[i]: ", consumer_write_address[i]);
                         req_valid[i]     <= 1'b1;
                         req_is_write[i]  <= consumer_write_valid[i];
                         req_addr[i]      <= consumer_write_valid[i] ? consumer_write_address[i] : consumer_read_address[i];
                         req_wdata[i]     <= consumer_write_data[i];
 
-                        // if (consumer_write_valid[i]) begin
-                        //     $display("[MCU @ %0t] LATCHING WRITE from consumer %0d: Addr=0x%h, Data=0x%h",
-                        //              $time, i, consumer_write_address[i], consumer_write_data[i]);
-                        // end else if (consumer_read_valid[i]) begin
-                        //      $display("[MCU @ %0t] LATCHING READ from consumer %0d: Addr=0x%h",
-                        //              $time, i, consumer_read_address[i]);
-                        // end
                     end
                 end
             end
@@ -243,7 +282,7 @@ module mcu #(
             // --- Clear the processed requests from the buffer ---
             // This happens AFTER a burst is fully complete
             if ((state == ISSUE_ADDR_CMD && m_axi_bvalid) ||
-                (state == READ_DATA_BURST && m_axi_rvalid && m_axi_rlast)) begin
+                (state == READ_DATA_BURST && m_axi_rvalid)) begin
                 for (int i = 0; i < burst_len_count; i++) begin
                     req_valid[burst_start_idx + i] <= 1'b0;
                 end
@@ -257,16 +296,18 @@ module mcu #(
             // end
 
             // --- Latch incoming read data and signal ready to the specific consumer ---
-            $display("m_axi_rvalid: ", m_axi_rvalid);
-            $display("READ_DATA_BURST On: ", state == READ_DATA_BURST);
+            // $display("m_axi_rvalid: ", m_axi_rvalid);
+            // $display("READ_DATA_BURST On: ", state == READ_DATA_BURST);
             if (state == READ_DATA_BURST && m_axi_rvalid) begin
                 int current_thread_idx = burst_start_idx + burst_data_counter;
-                $display("consumer_read_data written: ", consumer_read_data[current_thread_idx]);
+                // $display("consumer_read_data written: ", consumer_read_data[current_thread_idx]);
                 consumer_read_data[current_thread_idx] <= m_axi_rdata;
                 consumer_read_ready[current_thread_idx] <= 1'b1;
             end
 
             // FIXED: Set consumer_write_ready using non-blocking assignment only
+            // $display("m_axi_bvalid: ", m_axi_bvalid);
+            $display("WRITE_DATA_BURST state check, supposed to be 5: ",state);
             if (state == WAIT_WRITE_RESP && m_axi_bvalid) begin
                 for (int i = 0; i < burst_len_count; i++) begin
                     consumer_write_ready[burst_start_idx + i] <= 1'b1;
