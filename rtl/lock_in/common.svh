@@ -11,7 +11,7 @@
 // Type Definitions
 typedef logic [`DATA_WIDTH-1:0] data_t;
 typedef logic [`INSTRUCTION_WIDTH-1:0] instruction_t;
-typedef logic [`DATA_MEMORY_ADDRESS_WIDTH:0] data_memory_address_t;
+typedef logic [`DATA_MEMORY_ADDRESS_WIDTH-1:0] data_memory_address_t;
 typedef logic [`INSTRUCTION_MEMORY_ADDRESS_WIDTH-1:0] instruction_memory_address_t;
 
 typedef struct packed {

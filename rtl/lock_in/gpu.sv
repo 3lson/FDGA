@@ -35,7 +35,7 @@ module gpu #(
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
     input logic data_mem_write_ready,
     input wire [4:0] debug_reg_addr,
-    output wire [DATA_WIDTH-1:0] debug_reg_data
+    output wire [`DATA_WIDTH-1:0] debug_reg_data
 );
 
 kernel_config_t kernel_config_reg;

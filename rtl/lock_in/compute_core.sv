@@ -34,7 +34,7 @@ module compute_core#(
     output  data_t                          data_mem_write_data             [NUM_LSUS],
     input   logic   [NUM_LSUS-1:0]          data_mem_write_ready,
     input wire [4:0] debug_reg_addr,
-    output logic [DATA_WIDTH-1:0] debug_reg_data
+    output logic [`DATA_WIDTH-1:0] debug_reg_data
 );
 
 typedef logic [THREADS_PER_WARP-1:0] warp_mask_t;
@@ -156,10 +156,12 @@ endgenerate
 
 always_comb begin
     all_warps_done = 1'b1;
-    for (int i = 0; i < num_warps; i = i + 1) begin
-        if (warp_state[i] != WARP_DONE) begin
-            all_warps_done = 1'b0;
-            break;
+    for (int i = 0; i < WARPS_PER_CORE; i = i + 1) begin
+        if (i < num_warps) begin
+            if (warp_state[i] != WARP_DONE) begin
+                all_warps_done = 1'b0;
+                break;
+            end
         end
     end
 end
@@ -208,13 +210,11 @@ always @(posedge clk) begin
     end else begin
         logic all_warps_synced = 1'b1;
         // Only check for sync if at least one warp has reached the barrier
-        for (int i = 0; i < num_warps; i++) begin
-            // Only consider warps that are active and not done
-            if ((warp_state[i] != WARP_DONE) && (warp_state[i] != WARP_IDLE)) begin
-                // If any active warp has NOT reached the barrier, we wait.
-                if (!sync_reached[i]) begin
-                    all_warps_synced = 1'b0;
-                    break;
+        for (int i = 0; i < WARPS_PER_CORE; i++) begin
+            if (i < num_warps) begin
+                // Only consider warps that are active and not done
+                if ((warp_state[i] != WARP_DONE) && (warp_state[i] != WARP_IDLE)) begin
+                    // If any active warp has NOT reached the barrier, we wait.
                 end
             end
         end
@@ -224,14 +224,14 @@ always @(posedge clk) begin
             $display("Block: %0d: All warps synchronized, releasing barrier", block_id);
             
             // Release all warps from the sync barrier
-            for (int i = 0; i < num_warps; i++) begin
-                if (warp_state[i] == WARP_SYNC_WAIT) begin
-                    warp_state[i] <= WARP_UPDATE;
+            for (int i = 0; i < WARPS_PER_CORE; i++) begin
+                if (i < num_warps) begin
+                    if (warp_state[i] == WARP_SYNC_WAIT) begin
+                        warp_state[i] <= WARP_UPDATE;
+                    end
                 end
             end
             
-            // Clear the barrier state
-            sync_reached <= '0;
         end
 
         // In parallel, check if fetchers are done, and if so, move to decode

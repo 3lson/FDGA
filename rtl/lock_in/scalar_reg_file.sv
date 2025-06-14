@@ -30,7 +30,7 @@ module scalar_reg_file #(
     output  data_t                          rs2,
 
     input wire [4:0]                        debug_reg_addr,
-    output logic [DATA_WIDTH-1:0]           debug_reg_data
+    output logic [`DATA_WIDTH-1:0]           debug_reg_data
 );
 
 /* verilator lint_off UNUSED */
@@ -74,7 +74,7 @@ always @(posedge clk) begin
     if (reset) begin
         registers[0] <= {DATA_WIDTH{1'b0}};
         registers[1] <= {DATA_WIDTH{1'b1}};
-        for (int i = 2; i < 32; i++) begin
+        for (int i = 2; i < 31; i++) begin
             registers[i] <= {DATA_WIDTH{1'b0}};
         end
         registers[EXECUTION_MASK_REG] <= {DATA_WIDTH{1'b1}};
