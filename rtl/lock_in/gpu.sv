@@ -33,7 +33,9 @@ module gpu #(
     output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_write_valid,
     output data_memory_address_t data_mem_write_address [DATA_MEM_NUM_CHANNELS],
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
-    input logic data_mem_write_ready
+    input logic data_mem_write_ready,
+    input wire [4:0] debug_reg_addr,
+    output wire [DATA_WIDTH-1:0] debug_reg_data
 );
 
 kernel_config_t kernel_config_reg;
@@ -250,7 +252,9 @@ generate
             .data_mem_write_valid(core_lsu_write_valid),
             .data_mem_write_address(core_lsu_write_address),
             .data_mem_write_data(core_lsu_write_data),
-            .data_mem_write_ready(core_lsu_write_ready)
+            .data_mem_write_ready(core_lsu_write_ready),
+            .debug_reg_addr(debug_reg_addr),
+            .debug_reg_data(debug_reg_data)
         );
     end
 endgenerate

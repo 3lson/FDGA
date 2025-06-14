@@ -32,7 +32,9 @@ module compute_core#(
     output  logic   [NUM_LSUS-1:0]          data_mem_write_valid,
     output  data_memory_address_t           data_mem_write_address          [NUM_LSUS],
     output  data_t                          data_mem_write_data             [NUM_LSUS],
-    input   logic   [NUM_LSUS-1:0]          data_mem_write_ready
+    input   logic   [NUM_LSUS-1:0]          data_mem_write_ready,
+    input wire [4:0] debug_reg_addr,
+    output logic [DATA_WIDTH-1:0] debug_reg_data
 );
 
 typedef logic [THREADS_PER_WARP-1:0] warp_mask_t;
@@ -477,7 +479,10 @@ for (genvar i = 0; i < WARPS_PER_CORE; i = i + 1) begin : g_warp
         .vector_to_scalar_data(vector_to_scalar_data[i]),
 
         .rs1(scalar_float_rs1[i]),
-        .rs2(scalar_float_rs2[i])
+        .rs2(scalar_float_rs2[i]),
+
+        .debug_reg_addr(debug_reg_addr),
+        .debug_reg_data(debug_reg_data) 
     );
 
     always_comb begin

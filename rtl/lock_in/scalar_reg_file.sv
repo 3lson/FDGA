@@ -27,7 +27,10 @@ module scalar_reg_file #(
     input   data_t                          vector_to_scalar_data,
 
     output  data_t                          rs1,
-    output  data_t                          rs2
+    output  data_t                          rs2,
+
+    input wire [4:0]                        debug_reg_addr,
+    output logic [DATA_WIDTH-1:0]           debug_reg_data
 );
 
 /* verilator lint_off UNUSED */
@@ -47,6 +50,7 @@ always_comb begin
         rs1 = (decoded_rs1_address == ZERO_REG) ? {DATA_WIDTH{1'b0}} : registers[decoded_rs1_address];
         rs2 = (decoded_rs2_address == ZERO_REG) ? {DATA_WIDTH{1'b0}} : registers[decoded_rs2_address];
     end
+    debug_reg_data = registers[debug_reg_addr];
 end
 always_comb begin
     // $display("RS1, RS2 from scalar_reg ", rs1, rs2);

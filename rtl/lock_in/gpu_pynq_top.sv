@@ -49,7 +49,9 @@ module gpu_pynq_top #(
     output logic [`DATA_MEMORY_ADDRESS_WIDTH-1:0] data_bram_addr,
     output logic [0:0]                          data_bram_we,
     output logic [`DATA_WIDTH-1:0]              data_bram_din,
-    input  wire [`DATA_WIDTH-1:0]               data_bram_dout
+    input  wire [`DATA_WIDTH-1:0]               data_bram_dout,
+    input wire [4:0] debug_reg_addr,
+    output wire [DATA_WIDTH-1:0]    debug_reg_data
 );
 
     // --- AXI Control Registers ---
@@ -135,7 +137,9 @@ module gpu_pynq_top #(
         .data_mem_write_valid(dmem_w_valid),
         .data_mem_write_address(dmem_w_addr),
         .data_mem_write_data(dmem_w_data),
-        .data_mem_write_ready(dmem_w_ready)
+        .data_mem_write_ready(dmem_w_ready),
+        .debug_reg_addr(debug_reg_addr),
+        .debug_reg_data(debug_reg_data)
     );
 
     // Adapter for Instruction Memory (Read-Only)
