@@ -51,8 +51,13 @@ always_comb begin
 end
 always_comb begin
     // $display("RS1, RS2 from scalar_reg ", rs1, rs2);
-    // $display("Check s1: ", registers[6]);
-    // $display("Check s2: ", registers[7]);
+    $display("Check vivado_iscalar.asm");
+    $display("Check s1: ", registers[6]);
+    $display("Check s2: ", registers[7]);
+    $display("Check s3: ", registers[8]);
+    $display("Check s4: ", registers[9]);
+    $display("Check s5: ", registers[10]);
+    $display("Check s6: ", registers[11]);
 end
 
 // Register file: each warp has its own set of 32 registers

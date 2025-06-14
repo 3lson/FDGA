@@ -681,8 +681,9 @@ always_comb begin
     // $display("data_mem_write_valid: ", data_mem_write_valid[THREADS_PER_WARP]);
 
 end
-
-
+// always_comb begin
+//     $display("data_mem_write_data[THREADS_PER_WARP]: ", data_mem_write_data[16]);
+// end
 lsu scalar_lsu_inst(
     .clk(clk),
     .reset(reset),

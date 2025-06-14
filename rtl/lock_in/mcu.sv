@@ -178,11 +178,11 @@ endfunction
                 logic found_burst;
                 found_burst = 1'b0;
                 burst_len_count = 1; // Default to burst of 1 for uncoalesced
-                for(int i=0; i<THREADS_PER_WARP; i++) begin
+                for(int i=0; i<=THREADS_PER_WARP; i++) begin
                     if(req_valid[i] && !found_burst) begin
                         found_burst = 1'b1;
                         burst_start_idx = i;
-                        for (int j = i + 1; j < THREADS_PER_WARP; j++) begin
+                        for (int j = i + 1; j <= THREADS_PER_WARP; j++) begin
                             if (req_valid[j] && (req_addr[j] == (req_addr[i] + (j-i)))) begin
                                 burst_len_count = burst_len_count + 1;
                             end else break;
@@ -288,11 +288,13 @@ endfunction
             //transaction_started <= 1'b0;
         end else begin
             state <= next_state;
-            $display("where did [16] go: ", consumer_write_valid[16]);
+            
 
             // Latch inputs only when in the BUFFER_REQS state
             if (state == IDLE && next_state == BUFFER_REQS) begin
-                req_valid <= consumer_read_valid | consumer_write_valid;
+                $display("where did [16] go: ", consumer_write_valid[16]);
+                req_valid <= |consumer_write_valid | |consumer_read_valid;
+                $display("req_valid: ",  |consumer_write_valid | |consumer_read_valid);
                 for (int i=0; i<=THREADS_PER_WARP; i++) begin
                     $display("consumer_write_valid: ", consumer_write_valid[i]);
                     $display("consumer_write_address: ", consumer_write_address[i]);

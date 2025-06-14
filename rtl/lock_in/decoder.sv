@@ -99,6 +99,15 @@ module decoder(
                         decoded_alu_instruction     <= BEQZ;
                         decoded_scalar_instruction  <= 1;
                     end
+                    3'b010: begin
+                        // Branch instructions (e.g., BEQZ)
+                        decoded_rs1_address         <= rs1;
+                        decoded_rs2_address         <= rs2;
+                        decoded_immediate           <= sign_extend_16(imm_b);
+                        decoded_branch              <= 1;
+                        decoded_alu_instruction     <= BEQO;
+                        decoded_scalar_instruction  <= 1;
+                    end
                     3'b110: begin
                         // Sync instruction
                         decoded_sync                <= 1;
@@ -168,6 +177,7 @@ module decoder(
                             4'b0010: decoded_alu_instruction <= MULI;
                             4'b0011: decoded_alu_instruction <= DIVI;
                             4'b1010: decoded_alu_instruction <= SLLI;
+                            4'b1011: decoded_alu_instruction <= SEQI;
                             default: $error("Invalid I-type instruction with funct4 %b", funct4);
                         endcase
                     end

@@ -129,8 +129,8 @@ module gpu #(
     always_comb begin 
         $display("lsu_read_data in gpu: ", lsu_read_data[16]);
         $display("lsu_read address in gpu: ", lsu_read_address[THREADS_PER_WARP]);
-        $display("lsu_write_data in gpu: ", lsu_write_data[16]);
-        $display("lsu write address in gpu: ", lsu_write_address[THREADS_PER_WARP]);
+        $display("lsu_write_data in gpu [16]: ", lsu_write_data[16]);
+        $display("lsu write address in gpu [16]: ", lsu_write_address[THREADS_PER_WARP]);
     end
     compute_core #(
         .WARPS_PER_CORE(WARPS_PER_CORE),
