@@ -15,7 +15,7 @@ module gpu_pynq_top #(
     parameter int INSTRUCTION_MEM_NUM_CHANNELS = 8,
     parameter int NUM_CORES                  = 1,
     parameter int WARPS_PER_CORE             = 1,
-    parameter int THREADS_PER_WARP           = 16
+    parameter int THREADS_PER_WARP           = 15
 ) (
     // AXI Lite Slave Interface (for PS control)
     input  wire                                 S_AXI_ACLK,
