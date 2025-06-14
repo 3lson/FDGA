@@ -30,7 +30,7 @@ unordered_map<string, int> rTypeFunctMap = {
 
 unordered_map<string, int> iTypeFunctMap = {
     {"addi", 0b0000}, {"muli", 0b0010}, {"slli", 0b1010},
-    {"divi", 0b0011}
+    {"divi", 0b0011}, {"seqi", 0b1011}
 };
 
 unordered_map<string, int> fTypeFunctMap = {
@@ -41,7 +41,7 @@ unordered_map<string, int> fTypeFunctMap = {
 };
 
 unordered_map<string, int> cTypeFunctMap = {
-    {"j", 0b000}, {"beqz", 0b001}, {"call", 0b010},
+    {"j", 0b000}, {"beqz", 0b001}, {"beqo", 0b010},
     {"ret", 0b011}, {"sync", 0b110}, {"exit", 0b111}
 };
 
@@ -399,6 +399,43 @@ uint32_t encodeControl(string op, const vector<string>& args, int pc) {
              | (rs1 << 5)
              | imm_6_2;
     }
+    if (op == "beqo") {
+        if (args.size() != 3) { cerr << "Error: Instruction '" << op << "' expects register and label." << endl; return 0; }
+        string rs1_str = args[1];
+        string label = args[2];
+        
+        auto it = int_scalar_registerMap.find(rs1_str);
+        if(it == int_scalar_registerMap.end()) { cerr << "Error: Invalid scalar integer register '" << rs1_str << "' for beqo." << endl; return 0; }
+        int rs1 = it->second;
+        
+        auto label_it = labelMap.find(label);
+         if(label_it == labelMap.end()) { cerr << "Error: Undefined label '" << label << "' for beqo." << endl; return 0; }
+        int target = label_it->second;
+
+        int rs2 = int_scalar_registerMap.at("zero");  // beqz compares RS1 to x0 (zero)
+        int32_t offset = (target - pc);
+        
+        // Branch offsets are PC-relative and word addressed (offset / 4). Immediate is signed.
+        // ISA format: Imm[17:8] at [28:19], Imm[7] at [13], Imm[6:2] at [4:0]
+        uint32_t imm = (offset>>2) & 0x3FFFF; // 18-bit offset in ISA (Imm[17:2])
+    
+        uint32_t imm_17_8 = (imm >> 8) & 0x3FF;   // bits [17:8] -> [28:19]
+        uint32_t imm_7    = (imm >> 7) & 0x1;     // bit [7]     -> [13] (Mistake in ISA table? Should be Imm[7] -> bit 13, but your table shows Imm[7] -> bit 13. It should be Imm[7] -> bit 13 or Imm[7] -> Imm[7]. Let's assume Imm[7] goes to bit 13)
+        uint32_t imm_6_2  = imm & 0x1F;           // bits [6:2]  -> [4:0]
+        
+        // Check if RS1 is actually zero (beqz x0, label is an unconditional branch in RISC-V)
+         if (rs1 == int_scalar_registerMap.at("zero")) {
+             cerr << "Warning: 'beqo zero, " << label << "' is an unconditional branch." << endl;
+         }
+
+        return (opcode << 29)
+             | (imm_17_8 << 19)
+             | (rs2 << 14) // This field is RS2(x0) in ISA table, so hardcoded to 0
+             | (imm_7 << 13) // Assuming Imm[7] goes to bit 13
+             | (funct3 << 10)
+             | (rs1 << 5)
+             | imm_6_2;
+    }
      if (op == "call") {
         if (args.size() != 3) { cerr << "Error: Instruction '" << op << "' expects register and label/address." << endl; return 0; }
         string rd_str = args[1];
@@ -444,7 +481,7 @@ uint32_t encodeControl(string op, const vector<string>& args, int pc) {
     // This structure doesn't match the C-type format with RS1, RD, or immediates.
     // They seem to be opcode | [28:13] | FUNCT3 | [9:0].
     // Let's encode them simply: opcode | 0...0 | FUNCT3 | 0...0
-    if (op == "sync" || op == "exit") {
+    if (op == "exit") {
          return (opcode << 29) | (funct3 << 10);
     }
 
@@ -534,9 +571,9 @@ uint32_t encodeXType(string op, const vector<string>& args) {
 int main() {
     initregisterMap();
     //ifstream input("bin/output/algotests/for/for.s"); // Example test file
-    ifstream input("assembler/mcu.asm");
-    ofstream instrOut("tb/test/tmp_test/scalar_write_test.hex");
-    ofstream dataOut("tb/test/tmp_test/data_scalar_write_test.hex");
+    ifstream input("assembler/sync.asm");
+    ofstream instrOut("tb/test/tmp_test/sync_test.hex");
+    ofstream dataOut("tb/test/tmp_test/data_sync_test.hex");
     vector<pair<int, string>> instructions;
     vector<pair<int, uint32_t>> data;
     string line;
@@ -704,16 +741,33 @@ int main() {
         tokens[0] = op; // Update token with stripped opcode (or original if no prefix)
         
         cout << "PC 0x" << hex << pc_addr << ": " << line << " -> ";
-        
-        if (rTypeFunctMap.count(op)) instr = encodeRType(op, {tokens[1], tokens[2], tokens[3]}, is_scalar);
+        if (op == "sync") {
+            auto it = labelMap.find("ENDSYNC");
+            if (it == labelMap.end()) {
+                cerr << "Assembler Error: 'sync' instruction requires a label 'ENDSYNC' to be defined." << endl;
+                continue; // Fail to assemble this instruction
+            }
+            // The immediate for the addi is the address of ENDSYNC
+            uint32_t endsync_address = it->second;
+
+            // We will now forge the arguments for an 'addi s25, zero, <endsync_address>' instruction
+            vector<string> addi_args = {
+                "s25",                       // rd = s25
+                "zero",                      // rs1 = zero
+                to_string(endsync_address)   // immediate = address of ENDSYNC
+            };
+            
+            cout << " (interpreted as addi s25, zero, 0x" << hex << endsync_address << dec << ") -> ";
+
+            // Reuse the I-Type encoder to generate the instruction word
+            instr = encodeIType("addi", addi_args, true); // 'true' for scalar
+        }
+        else if (rTypeFunctMap.count(op)) instr = encodeRType(op, {tokens[1], tokens[2], tokens[3]}, is_scalar);
         else if (iTypeFunctMap.count(op)) instr = encodeIType(op, {tokens[1], tokens[2], tokens[3]}, is_scalar);
         else if (fTypeFunctMap.count(op)) instr = encodeFType(op, tokens, is_scalar); // F-type takes full tokens vector
         else if (op == "lw" || op == "flw") instr = encodeLoad(op, {tokens[1], tokens[2]}, is_scalar);
         else if (op == "sw" || op == "fsw") instr = encodeStore(op, {tokens[1], tokens[2]}, is_scalar);
-        else if (cTypeFunctMap.count(op) || op == "sync" || op == "exit") {
-             if (!is_scalar && op != "sync") { // sync can logically affect vector state, others are scalar
-                 cerr << "Warning: Control flow/Exit instruction '" << op << "' used with 'v.' prefix. Ignoring prefix." << endl;
-             }
+        else if (cTypeFunctMap.count(op) || op == "exit") {
             instr = encodeControl(op, tokens, pc_addr); // Control flow is always encoded as scalar operation
         }
         else if (op == "lui") instr = encodeLUI({tokens[1], tokens[2]}, is_scalar);

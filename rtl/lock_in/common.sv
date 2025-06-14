@@ -84,7 +84,12 @@ typedef enum logic [4:0] {
 
     // jump instructions
     JAL, // 11010
-    SYNC
+
+    // special
+    SEQI, // 11011
+    BEQO, // 11100
+    SYNC, // 11101
+    END_SYNC // 11110
 } alu_instruction_t;
 
 // warp state enum
