@@ -1,4 +1,3 @@
-`default_nettype none
 `timescale 1ns/1ns
 
 `include "common.svh"
@@ -108,9 +107,11 @@ always_comb begin
                     sum = sum >> 1;
                     result_exp = result_exp + 1;
                 end else begin
-                    while (sum[23] == 0 && result_exp > 0) begin
+                    for(int i=0; i<24; i++) begin
+                        if(sum[23]==1 || result_exp==0)
+                            break;
                         sum = sum << 1;
-                        result_exp = result_exp - 1;
+                        result_exp = result_exp -1;
                     end
                 end
 
@@ -144,9 +145,11 @@ always_comb begin
                 if (sum == 0) begin
                     result = 32'd0;
                 end else begin
-                    while (sum[23] == 0 && result_exp > 0) begin
+                    for(int i=0; i<24; i++) begin
+                        if(sum[23]==1 || result_exp==0)
+                            break;
                         sum = sum << 1;
-                        result_exp = result_exp - 1;
+                        result_exp = result_exp -1;
                     end
 
                     guard_bit = sum[1];
@@ -279,11 +282,18 @@ always_comb begin
                 result = 32'd0;
             end else begin
                 abs_op1 = op1[31] ? -op1 : op1;
-                significant_one = 31;
-                
-                while (significant_one > 0 && !abs_op1[significant_one]) begin
-                    significant_one = significant_one - 1;
+                significant_one = -1;
+
+                for(int i = 31; i>=0; i--) begin
+                    if(abs_op1[i]) begin
+                        significant_one = i;
+                        break;
+                    end
                 end
+
+                if(significant_one == -1) begin
+                    result = 32'd0;
+                end else begin
                 
                 op1_biased_exponent = 127 + significant_one;
                 
@@ -295,6 +305,7 @@ always_comb begin
                 
                 result = {op1[31], op1_biased_exponent, op1_significand[22:0]};
             end
+        end
         end
 
         default: begin

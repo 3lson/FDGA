@@ -1,4 +1,3 @@
-`default_nettype none
 `timescale 1ns/1ns
 
 `include "common.svh"
@@ -28,28 +27,33 @@ always @(posedge clk) begin
         instruction_mem_read_address <= 0;
         instruction <= {`INSTRUCTION_WIDTH{1'b0}};
     end else begin
+        instruction_mem_read_valid <= 1'b0;
+
         case (fetcher_state)
             FETCHER_IDLE: begin
                 if (warp_state == WARP_FETCH) begin
                     fetcher_state <= FETCHER_FETCHING;
-                    instruction_mem_read_valid <= 1;
+                    instruction_mem_read_valid <= 1'b1;
                     instruction_mem_read_address <= pc;
                 end
             end
             FETCHER_FETCHING: begin
+                instruction_mem_read_valid <= 1'b1;
                 if (instruction_mem_read_ready) begin
                     fetcher_state <= FETCHER_DONE;
-                    instruction_mem_read_valid <= 0;
                     instruction <= instruction_mem_read_data;
+                    instruction_mem_read_valid <= 0;
                 end
             end
             FETCHER_DONE: begin
-                if (warp_state == WARP_DECODE) begin
-                    fetcher_state <= FETCHER_IDLE;
+                if (warp_state != WARP_FETCH && warp_state != WARP_DECODE) begin
+                    // This condition seems more robust, wait until core moves on
+                end else if (warp_state == WARP_DECODE) begin
+                     fetcher_state <= FETCHER_IDLE;
                 end
             end
             default: begin
-                $error("Invalid fetcher state");
+                fetcher_state <= FETCHER_IDLE;
             end
         endcase
     end

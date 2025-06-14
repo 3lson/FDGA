@@ -1,4 +1,4 @@
-`default_nettype none
+
 `timescale 1ns/1ns
 
 module mem_controller #(
@@ -39,7 +39,8 @@ module mem_controller #(
 
     // Keep track of state for each channel and which jobs each channel is handling
     reg [2:0] controller_state [NUM_CHANNELS];
-    reg [$clog2(NUM_CONSUMERS)-1:0] current_consumer [NUM_CHANNELS]; // Which consumer is each channel currently serving
+    localparam int CONSUMER_ID_WIDTH = (NUM_CONSUMERS > 1) ? $clog2(NUM_CONSUMERS) : 1;
+    reg [CONSUMER_ID_WIDTH-1:0] current_consumer [NUM_CHANNELS];
     reg [NUM_CONSUMERS-1:0] channel_serving_consumer; // Which channels are being served? Prevents many workers from picking up the same request.
 
     always @(posedge clk) begin
@@ -73,7 +74,7 @@ module mem_controller #(
                         for (int j = 0; j < NUM_CONSUMERS; j = j + 1) begin
                             if (consumer_read_valid[j] && !channel_serving_consumer[j]) begin
                                 channel_serving_consumer[j] <= 1;
-                                current_consumer[i] = j[$clog2(NUM_CONSUMERS)-1:0];
+                                current_consumer[i] = j[CONSUMER_ID_WIDTH-1:0];
 
                                 mem_read_valid[i] <= 1;
                                 mem_read_address[i] = consumer_read_address[j];

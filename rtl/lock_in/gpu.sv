@@ -1,4 +1,4 @@
-`default_nettype none
+
 `timescale 1ns/1ns
 
 `include "common.svh"
@@ -33,7 +33,7 @@ module gpu #(
     output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_read_valid,
     output data_memory_address_t data_mem_read_address [DATA_MEM_NUM_CHANNELS],
     input wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_read_ready,
-    input data_memory_address_t data_mem_read_data [DATA_MEM_NUM_CHANNELS],
+    input data_t data_mem_read_data [DATA_MEM_NUM_CHANNELS],
     output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_write_valid,
     output data_memory_address_t data_mem_write_address [DATA_MEM_NUM_CHANNELS],
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
@@ -209,21 +209,21 @@ generate
         logic [NUM_LSUS_PER_CORE-1:0] core_lsu_write_ready;
 
         // Pass through signals between LSUs and data memory controller
-        genvar j;
-        for (j = 0; j < NUM_LSUS_PER_CORE; j = j + 1) begin : g_lsu_connect
-            localparam lsu_index = i * NUM_LSUS_PER_CORE + j;
-            always @(posedge clk) begin
-                lsu_read_valid[lsu_index] <= core_lsu_read_valid[j];
-                lsu_read_address[lsu_index] <= core_lsu_read_address[j];
+        for (genvar j = 0; j < NUM_LSUS_PER_CORE; j = j + 1) begin : g_lsu_connect
+            localparam int lsu_index = i * NUM_LSUS_PER_CORE + j;
 
-                lsu_write_valid[lsu_index] <= core_lsu_write_valid[j];
-                lsu_write_address[lsu_index] <= core_lsu_write_address[j];
-                lsu_write_data[lsu_index] <= core_lsu_write_data[j];
+            // --- Core -> Memory Bus Connections ---
+            assign lsu_read_valid[lsu_index]    = core_lsu_read_valid[j];
+            assign lsu_read_address[lsu_index]  = core_lsu_read_address[j];
 
-                core_lsu_read_ready[j] <= lsu_read_ready[lsu_index];
-                core_lsu_read_data[j] <= lsu_read_data[lsu_index];
-                core_lsu_write_ready[j] <= lsu_write_ready[lsu_index];
-            end
+            assign lsu_write_valid[lsu_index]   = core_lsu_write_valid[j];
+            assign lsu_write_address[lsu_index] = core_lsu_write_address[j];
+            assign lsu_write_data[lsu_index]    = core_lsu_write_data[j];
+
+            // --- Memory Bus -> Core Connections ---
+            assign core_lsu_read_ready[j]       = lsu_read_ready[lsu_index];
+            assign core_lsu_read_data[j]        = lsu_read_data[lsu_index];
+            assign core_lsu_write_ready[j]      = lsu_write_ready[lsu_index];
         end
 
         localparam fetcher_index = i * WARPS_PER_CORE;
