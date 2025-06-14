@@ -32,9 +32,7 @@ module compute_core#(
     output  logic   [NUM_LSUS-1:0]          data_mem_write_valid,
     output  data_memory_address_t           data_mem_write_address          [NUM_LSUS],
     output  data_t                          data_mem_write_data             [NUM_LSUS],
-    input   logic   [NUM_LSUS-1:0]          data_mem_write_ready,
-    output logic                            start_mcu_transaction, 
-    input logic                             mcu_is_busy
+    input   logic   [NUM_LSUS-1:0]          data_mem_write_ready
 );
 
 typedef logic [THREADS_PER_WARP-1:0] warp_mask_t;
@@ -168,7 +166,6 @@ always @(posedge clk) begin
         //$display("Resetting core %0d", block_id);
         start_execution <= 0;
         done <= 0;
-        start_mcu_transaction <= 1'b0;
         for (int i = 0; i < WARPS_PER_CORE; i = i + 1) begin
             warp_state[i] <= WARP_IDLE;
             fetcher_state[i] <= FETCHER_IDLE;
@@ -212,10 +209,6 @@ always @(posedge clk) begin
                     break;
                 end
             end
-        end
-
-        if(start_mcu_transaction) begin
-            start_mcu_transaction <= 1'b0;
         end
 
         // If all active warps have synchronized, release them all AT ONCE.
@@ -326,10 +319,6 @@ always @(posedge clk) begin
 
                 // If no LSU is waiting for a response, move onto the next stage
                 if (!any_lsu_waiting) begin
-                    warp_state[current_warp] <= WARP_EXECUTE;
-                end
-
-                if (!mcu_is_busy) begin
                     warp_state[current_warp] <= WARP_EXECUTE;
                 end
             end

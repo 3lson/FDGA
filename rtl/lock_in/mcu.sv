@@ -12,7 +12,6 @@ module mcu #(
 ) (
     input wire clk,
     input wire reset,
-    //input wire start_mcu_transaction,
     
     input  logic [THREADS_PER_WARP:0] consumer_read_valid,
     input  data_memory_address_t consumer_read_address [THREADS_PER_WARP:0],
@@ -51,10 +50,12 @@ module mcu #(
     input  logic [C_M_AXI_ID_WIDTH-1:0]      m_axi_rid,
     input  logic [C_M_AXI_DATA_WIDTH-1:0]    m_axi_rdata,
     input  logic [1:0]                       m_axi_rresp,
+    input logic                              m_axi_rlast,
     input  logic                             m_axi_rvalid,
     output logic                             m_axi_rready
 );
 
+// This function is for combinational prediction, which is a good optimisation
 function logic calc_remaining_requests(
     logic [THREADS_PER_WARP:0] current_req_valid,
     logic [$clog2(THREADS_PER_WARP+1)-1:0] start_idx,
@@ -75,8 +76,9 @@ endfunction
     localparam int SCALAR_LSU_IDX = THREADS_PER_WARP;
     localparam BYTES_PER_WORD = C_M_AXI_DATA_WIDTH / 8;
 
-    typedef enum logic [2:0] {
+    typedef enum logic [3:0] {
         IDLE,
+        BUFFER_REQS,
         PROCESS_SCALAR,
         COALESCE_PLAN,
         ISSUE_ADDR_CMD,
@@ -87,6 +89,7 @@ endfunction
 
     // --- Internal Registers ---
     mcu_state_t state, next_state;
+
     logic [$clog2(THREADS_PER_WARP+1)-1:0] burst_start_idx;
     logic [7:0]                           burst_len_count;
     logic [7:0]                           burst_data_counter;
@@ -95,10 +98,6 @@ endfunction
     data_memory_address_t      req_addr [THREADS_PER_WARP:0];
     data_t                     req_wdata [THREADS_PER_WARP:0];
     
-    //logic transaction_started;
-    
-    // logic any_remaining_requests_after_burst;
-    // logic  [THREADS_PER_WARP:0] req_valid_after_clear;
     
     assign mcu_is_busy = (state != IDLE);
 
@@ -149,14 +148,23 @@ endfunction
                 // $display("consumer_read_valid", consumer_read_valid);
                 // $display("|consumer_write_valid", |consumer_write_valid);
                 if(|consumer_read_valid || |consumer_write_valid) begin
-                    $display("MCU: IDLE -> PROCESS_SCALAR");
-                    next_state = PROCESS_SCALAR;
+                    $display("MCU: IDLE -> BUFFER_REQS");
+                    next_state = BUFFER_REQS;
                 end
+            end
+
+            BUFFER_REQS: begin
+                // We spend 1 cycle here to guarantee inputs are stable
+                // On the next cycle, we will have the latched values
+                $display("MCU: BUFFER_REQS -> PROCESS_SCALAR");
+                next_state = PROCESS_SCALAR;
             end
 
             PROCESS_SCALAR:
                 if (req_valid[SCALAR_LSU_IDX]) begin
                     $display("MCU: PROCESS_SCALAR -> ISSUE_ADDR_CMD");
+                    burst_start_idx = SCALAR_LSU_IDX;
+                    burst_len_count = 1;
                     next_state = ISSUE_ADDR_CMD;
                 end else if (|req_valid[THREADS_PER_WARP-1:0]) begin // Any vector requests?
                     $display("MCU: PROCESS_SCALAR -> COALESCE_PLAN");
@@ -167,6 +175,20 @@ endfunction
                 end
 
             COALESCE_PLAN: begin
+                logic found_burst;
+                found_burst = 1'b0;
+                burst_len_count = 1; // Default to burst of 1 for uncoalesced
+                for(int i=0; i<THREADS_PER_WARP; i++) begin
+                    if(req_valid[i] && !found_burst) begin
+                        found_burst = 1'b1;
+                        burst_start_idx = i;
+                        for (int j = i + 1; j < THREADS_PER_WARP; j++) begin
+                            if (req_valid[j] && (req_addr[j] == (req_addr[i] + (j-i)))) begin
+                                burst_len_count = burst_len_count + 1;
+                            end else break;
+                        end
+                    end
+                end
                 $display("MCU: COALESCE_PLAN -> ISSUE_ADDR_CMD");
                 next_state = ISSUE_ADDR_CMD;
             end
@@ -204,37 +226,50 @@ endfunction
                 // $display("burst_data_counter: ", burst_data_counter);
                 m_axi_wvalid = 1'b1; m_axi_wdata = req_wdata[burst_start_idx + burst_data_counter];
                 m_axi_wlast = (burst_data_counter == burst_len_count - 1);
-                if (m_axi_wready && m_axi_wlast) begin
-                    $display("MCU: WRITE_DATA_BURST -> WAIT_WRITE_RESP");
-                    next_state = WAIT_WRITE_RESP;
+                if (m_axi_wready) begin
+                    if (m_axi_wlast) begin 
+                        $display("MCU: WRITE_DATA_BURST -> WAIT_WRITE_RESP");
+                        next_state = WAIT_WRITE_RESP;
+                    end
+                    // else stay in this state for multi-beat bursts
                 end
             end
 
             WAIT_WRITE_RESP: begin
                 m_axi_bready = 1'b1;
+                // Assert consumer_write_ready for the completed transfers
+                for (int i = 0; i < burst_len_count; i++) begin
+                    if (req_is_write[burst_start_idx + i]) begin
+                        consumer_write_ready[burst_start_idx + i] = 1'b1;
+                    end
+                end
                 if (m_axi_bvalid) begin
                     if (calc_remaining_requests(req_valid, burst_start_idx, burst_len_count)) begin
                         $display("MCU: WAIT_WRITE_RESP -> PROCESS_SCALAR");
-                        next_state = PROCESS_SCALAR; // Go check for more work
-                    end else begin
+                        next_state = PROCESS_SCALAR;
+                    end
+                    else begin
                         $display("MCU: WAIT_WRITE_RESP -> IDLE");
-                        next_state = IDLE; // All done
+                        next_state = IDLE;
                     end
                 end
             end
             
             READ_DATA_BURST: begin
                 m_axi_rready = 1'b1;
-                // $display("m_axi_rvalid: ", m_axi_rvalid);
-                // $display("any_remaining_requests_after_burst: ", any_remaining_requests_after_burst);
                 if (m_axi_rvalid) begin
-                    // --- SOLUTION: Use the PREDICTED value to decide the next state ---
-                    if (calc_remaining_requests(req_valid, burst_start_idx, burst_len_count)) begin
-                        $display("MCU: READ_DATA_BURST -> PROCESS_SCALAR");
-                        next_state = PROCESS_SCALAR; // Go check for more work
-                    end else begin
-                        $display("MCU: READ_DATA_BURST -> IDLE");
-                        next_state = IDLE; // All done
+                    $display("m_axi_rvalid: ", m_axi_rvalid);
+                    $display("m_axi_rlast: ", m_axi_rlast);
+                    // Data and Ready are driven in the always_ff block
+                    if (m_axi_rlast) begin
+                        if (calc_remaining_requests(req_valid, burst_start_idx, burst_len_count)) begin
+                            $display("MCU: READ_DATA_BURST -> PROCESS_SCALAR");
+                            next_state = PROCESS_SCALAR;
+                        end
+                        else begin
+                            $display("MCU: READ_DATA_BURST -> IDLE");
+                            next_state = IDLE;
+                        end
                     end
                 end
             end
@@ -249,103 +284,47 @@ endfunction
             state <= IDLE;
             req_valid <= '0;
             burst_data_counter <= '0;
-            consumer_read_ready <= '0;
-            consumer_write_ready <= '0;  // FIXED: Initialize in reset
             consumer_read_data <= '{default:'0};
             //transaction_started <= 1'b0;
         end else begin
             state <= next_state;
             $display("where did [16] go: ", consumer_write_valid[16]);
 
-            // FIXED: Clear consumer_write_ready at the beginning of each cycle
-            // unless we're specifically setting it this cycle
-            consumer_write_ready <= '0;
-
-            if (state == IDLE && next_state == PROCESS_SCALAR) begin
-                req_valid <= '0; // Clear previous requests
-                consumer_read_ready <= '0;
-                //transaction_started <= 1'b1;  // FIXED: Set transaction flag when starting
+            // Latch inputs only when in the BUFFER_REQS state
+            if (state == IDLE && next_state == BUFFER_REQS) begin
+                req_valid <= consumer_read_valid | consumer_write_valid;
                 for (int i=0; i<=THREADS_PER_WARP; i++) begin
-                    if (consumer_read_valid[i] || consumer_write_valid[i]) begin
-                        $display("consumer_write_valid[i] part 2: ", consumer_write_valid[i]);
-                        $display("consumer_write_data[i]: ", consumer_write_data[i]);
-                        $display("consumer_write_address[i]: ", consumer_write_address[i]);
-                        req_valid[i]     <= 1'b1;
-                        req_is_write[i]  <= consumer_write_valid[i];
-                        req_addr[i]      <= consumer_write_valid[i] ? consumer_write_address[i] : consumer_read_address[i];
-                        req_wdata[i]     <= consumer_write_data[i];
-
-                    end
+                    $display("consumer_write_valid: ", consumer_write_valid[i]);
+                    $display("consumer_write_address: ", consumer_write_address[i]);
+                    $display("consumer_write_data: ", consumer_write_data[i]);
+                    req_is_write[i]  <= consumer_write_valid[i];
+                    req_addr[i]      <= consumer_write_valid[i] ? consumer_write_address[i] : consumer_read_address[i];
+                    req_wdata[i]     <= consumer_write_data[i];
+                    $display("req_is_write: ", req_is_write[i]);
+                    $display("req_addr: ", req_addr[i]);
+                    $display("req_wdata: ", req_wdata[i]);
                 end
             end
 
-            // --- Clear the processed requests from the buffer ---
-            // This happens AFTER a burst is fully complete
-            if ((state == ISSUE_ADDR_CMD && m_axi_bvalid) ||
-                (state == READ_DATA_BURST && m_axi_rvalid)) begin
+            // Clear the valid bits of the requests that have been fully processed
+            if ((state == WAIT_WRITE_RESP && m_axi_bvalid) || (state == READ_DATA_BURST && m_axi_rvalid && m_axi_rlast)) begin
                 for (int i = 0; i < burst_len_count; i++) begin
                     req_valid[burst_start_idx + i] <= 1'b0;
                 end
             end
 
-            // FIXED: Reset transaction_started when going back to IDLE
-            // if (((state == WAIT_WRITE_RESP && m_axi_bvalid) ||
-            //      (state == READ_DATA_BURST && m_axi_rvalid && m_axi_rlast)) &&
-            //     any_remaining_requests_after_burst) begin
-            //     transaction_started <= 1'b0;
-            // end
-
-            // --- Latch incoming read data and signal ready to the specific consumer ---
-            // $display("m_axi_rvalid: ", m_axi_rvalid);
-            // $display("READ_DATA_BURST On: ", state == READ_DATA_BURST);
+            // Latch incoming read data
             if (state == READ_DATA_BURST && m_axi_rvalid) begin
-                int current_thread_idx = burst_start_idx + burst_data_counter;
-                // $display("consumer_read_data written: ", consumer_read_data[current_thread_idx]);
-                consumer_read_data[current_thread_idx] <= m_axi_rdata;
-                consumer_read_ready[current_thread_idx] <= 1'b1;
+                consumer_read_data[burst_start_idx + burst_data_counter] <= m_axi_rdata;
+            end else begin
+                consumer_read_ready <= '0;
             end
 
-            // FIXED: Set consumer_write_ready using non-blocking assignment only
-            // $display("m_axi_bvalid: ", m_axi_bvalid);
-            $display("WRITE_DATA_BURST state check, supposed to be 5: ",state);
-            if (state == WAIT_WRITE_RESP && m_axi_bvalid) begin
-                for (int i = 0; i < burst_len_count; i++) begin
-                    consumer_write_ready[burst_start_idx + i] <= 1'b1;
-                end
-            end
-
-            // --- Manage Burst Counter ---
-            if (next_state == ISSUE_ADDR_CMD) begin // Reset counter when we start a new plan
+            // Manage Burst Counter
+            if (next_state == IDLE || next_state == PROCESS_SCALAR) begin
                 burst_data_counter <= '0;
-            end else if ((state == WRITE_DATA_BURST && m_axi_wready) ||
-                       (state == READ_DATA_BURST && m_axi_rvalid)) begin // Increment during a burst
+            end else if ((state == WRITE_DATA_BURST && m_axi_wready) || (state == READ_DATA_BURST && m_axi_rvalid)) begin
                 burst_data_counter <= burst_data_counter + 1;
-            end
-
-            // --- Set burst parameters in PROCESS_SCALAR for scalar requests ---
-            if (state == PROCESS_SCALAR && req_valid[SCALAR_LSU_IDX]) begin
-                burst_start_idx <= SCALAR_LSU_IDX;
-                burst_len_count <= 1;
-            end
-
-            // --- Set burst parameters in COALESCE_PLAN for vector requests ---
-            if (state == COALESCE_PLAN) begin
-                logic found_burst = 1'b0;
-                for (int i = 0; i < THREADS_PER_WARP; i++) begin
-                    if (req_valid[i] && !found_burst) begin
-                        burst_start_idx <= i;
-                        burst_len_count <= 1;
-                        found_burst = 1'b1;
-                        // Count consecutive word addresses
-                        for (int j = i + 1; j < THREADS_PER_WARP; j++) begin
-                            if (req_valid[j] && (req_addr[j] == (req_addr[i] + (j-i)))) begin
-                                burst_len_count <= j - i + 1;
-                            end else begin
-                                break;
-                            end
-                        end
-                    end
-                end
             end
         end
     end

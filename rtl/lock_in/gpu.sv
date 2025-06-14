@@ -43,8 +43,6 @@ module gpu #(
     logic [NUM_CORES-1:0] core_start;
     logic [NUM_CORES-1:0] core_reset;
     data_t core_block_id [NUM_CORES];
-    logic core_start_mcu_transaction;
-    logic mcu_busy;
 
     assign data_mem_write_address[0] = m_axi_awaddr;
     assign data_mem_write_data[0]    = m_axi_wdata;
@@ -96,8 +94,6 @@ module gpu #(
     ) mcu_inst (
         .clk(clk),
         .reset(reset),
-        //.start_mcu_transaction(core_start_mcu_transaction),
-        .mcu_is_busy(mcu_busy),
 
         // Connect the consumer array ports to the LSU wires
         .consumer_read_valid     (lsu_read_valid),
@@ -160,10 +156,8 @@ module gpu #(
         .data_mem_write_valid(lsu_write_valid),
         .data_mem_write_address(lsu_write_address),
         .data_mem_write_data(lsu_write_data),
-        .data_mem_write_ready(lsu_write_ready),
+        .data_mem_write_ready(lsu_write_ready)
 
-        //.start_mcu_transaction(core_start_mcu_transaction),
-        .mcu_is_busy(mcu_busy)
     );
     
 endmodule

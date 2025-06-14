@@ -119,7 +119,7 @@ protected:
         }
         std::cout << "Loaded " << instruction_memory.size() << " instructions." << std::endl;
     }
-    void runAndComplete(int timeout_cycles = 1000) {
+    void runAndComplete(int timeout_cycles = 50) {
         // Set kernel config
         top->data_mem_read_ready = 1;
         top->data_mem_write_ready = 1;

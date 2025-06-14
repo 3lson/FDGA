@@ -160,7 +160,7 @@ module decoder(
                             4'b0000: begin
                                 decoded_alu_instruction <= ADDI;
                                 if(rs1 == 5'b0) begin 
-                                    decoded_mem_read_enable     <= 1;
+                                    //decoded_mem_read_enable     <= 1;
                                 end else begin
                                     decoded_mem_read_enable     <= 0;
                                 end
