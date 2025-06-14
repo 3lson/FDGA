@@ -48,9 +48,11 @@ always_comb begin
         rs2 = (decoded_rs2_address == ZERO_REG) ? {DATA_WIDTH{1'b0}} : registers[decoded_rs2_address];
     end
 end
-// always_comb begin
-//     $display("RS1, RS2 from scalar_reg ", rs1, rs2);
-// end
+always_comb begin
+    // $display("RS1, RS2 from scalar_reg ", rs1, rs2);
+    // $display("Check s1: ", registers[6]);
+    // $display("Check s2: ", registers[7]);
+end
 
 // Register file: each warp has its own set of 32 registers
 
@@ -89,6 +91,7 @@ always @(posedge clk) begin
                     PC_PLUS_1:  registers[decoded_rd_address] <= pc + 1;
                     VECTOR_TO_SCALAR: begin
                         $display("Scalar Reg File: Writing vector_to_scalar_data to register %d", decoded_rd_address);
+                        // $display("vector_to_scalar_data: ", vector_to_scalar_data);
                         registers[decoded_rd_address] <= vector_to_scalar_data;
                     end
                     default: $error("Invalid decoded_reg_input_mux value");

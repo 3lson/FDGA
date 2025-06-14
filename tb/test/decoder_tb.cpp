@@ -372,35 +372,6 @@ TEST_F(DecoderTestbench, ScalarFlagTest) {
     EXPECT_EQ(top->decoded_reg_input_mux, IMMEDIATE) << "Mux selection failed for LUI";
 }
 
-// ------------------ SYNC TEST ------------------
-TEST_F(DecoderTestbench, SyncInstruction) {
-    resetDecoder();
-
-    // Manually construct the SYNC instruction according to the ISA table.
-    // Opcode = 111 (OPCODE_J), Funct3 = 110. Other bits are don't cares.
-    uint32_t instr_sync = (OPCODE_J << 29) | (0b110 << 10);
-    
-    // In hex: 0xE0000C00
-    std::cout << "Testing SYNC instruction: 0x" << std::hex << instr_sync << std::dec << std::endl;
-
-    decodeInstruction(instr_sync);
-
-    // --- Primary Assertions for SYNC ---
-    // The most important output is decoded_sync.
-    EXPECT_EQ(top->decoded_sync, 1) << "decoded_sync should be asserted for a SYNC instruction.";
-    
-    // It is a scalar control instruction.
-    EXPECT_EQ(top->decoded_scalar_instruction, 1) << "SYNC should be decoded as a scalar instruction.";
-
-    // --- Assert Inactive Signals ---
-    // SYNC is not a branch, memory op, or register write.
-    EXPECT_EQ(top->decoded_reg_write_enable, 0) << "SYNC should not enable register write.";
-    EXPECT_EQ(top->decoded_mem_read_enable, 0) << "SYNC should not enable memory read.";
-    EXPECT_EQ(top->decoded_mem_write_enable, 0) << "SYNC should not enable memory write.";
-    EXPECT_EQ(top->decoded_branch, 0) << "SYNC should not be decoded as a branch.";
-    EXPECT_EQ(top->decoded_halt, 0) << "SYNC should not halt the core.";
-}
-
 // ------------------ DEFAULT CASE TEST ------------------
 TEST_F(DecoderTestbench, DefaultCase) {
     resetDecoder();

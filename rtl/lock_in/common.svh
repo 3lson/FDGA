@@ -11,7 +11,7 @@
 // Type Definitions
 typedef logic [`DATA_WIDTH-1:0] data_t;
 typedef logic [`INSTRUCTION_WIDTH-1:0] instruction_t;
-typedef logic [`DATA_MEMORY_ADDRESS_WIDTH-1:0] data_memory_address_t;
+typedef logic [`DATA_MEMORY_ADDRESS_WIDTH:0] data_memory_address_t;
 typedef logic [`INSTRUCTION_MEMORY_ADDRESS_WIDTH-1:0] instruction_memory_address_t;
 
 typedef struct packed {
@@ -84,7 +84,12 @@ typedef enum logic [4:0] {
 
     // jump instructions
     JAL, // 11010
-    SYNC
+
+    // special
+    SEQI, // 11011
+    BEQO, // 11100
+    SYNC, // 11101
+    END_SYNC // 11110
 } alu_instruction_t;
 
 // warp state enum
@@ -147,9 +152,9 @@ endfunction
 function automatic data_t sign_extend_16(logic[15:0] imm16);
     data_t signed_imm16;
     if (imm16[15]) begin
-        signed_imm16 = {{14{1'b1}}, imm16};
+        signed_imm16 = {{16{1'b1}}, imm16};
     end else begin
-        signed_imm16 = {{14{1'b0}}, imm16};
+        signed_imm16 = {{16{1'b0}}, imm16};
     end
     return signed_imm16;
 endfunction

@@ -247,7 +247,7 @@ always_comb begin
 
         FNEG: result = {~op1[31], op1[30:0]}; //negate the sign bit
         
-        FABS: result = {0'b0, op1[30:0]};
+        FABS: result = {1'b0, op1[30:0]};
 
         FEQ: begin
             result = (op1 == op2) ? 32'd1:32'd0;

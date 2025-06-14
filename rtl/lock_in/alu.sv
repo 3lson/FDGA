@@ -34,8 +34,13 @@ module alu (
             MULI: Result = ALUop1 * IMM; // MULTIPLY
             DIVI: Result = ALUop1 / IMM; // DIVIDE
             SLLI: Result = ALUop1 << IMM[4:0];
+            SEQI: Result = (ALUop1 == IMM) ? 1 : 0;
 
             // --- C-Type: Control Flow ---
+            BEQO: begin 
+                Result = (ALUop1 == 32'd1) ? 32'd1 : 32'd0;
+            end
+
             BEQZ: begin
                 // The ALU's job is just to check the condition
                 Result = (ALUop1 == 32'd0) ? 32'd1 : 32'd0;

@@ -10,6 +10,7 @@ module gpu #(
     parameter int WARPS_PER_CORE /*verilator public*/ = 1,            // Number of warps to in each core
     parameter int THREADS_PER_WARP /*verilator public*/ = 16          // Number of threads per warp (max 32)
 ) (
+    // ... ports are unchanged ...
     input wire clk,
     input wire reset,
     input logic [31:0] base_instr,
@@ -20,24 +21,19 @@ module gpu #(
     input wire execution_start,
     output wire execution_done,
 
-    // kernel configuration
-    //input kernel_config_t kernel_config,
-
     // Program Memory
     output wire [INSTRUCTION_MEM_NUM_CHANNELS-1:0] instruction_mem_read_valid,
     output instruction_memory_address_t instruction_mem_read_address [INSTRUCTION_MEM_NUM_CHANNELS],
     input wire [INSTRUCTION_MEM_NUM_CHANNELS-1:0] instruction_mem_read_ready,
     input instruction_t instruction_mem_read_data [INSTRUCTION_MEM_NUM_CHANNELS],
-
-    // Data Memory
-    output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_read_valid,
+    output logic data_mem_read_valid,
     output data_memory_address_t data_mem_read_address [DATA_MEM_NUM_CHANNELS],
     input wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_read_ready,
     input data_t data_mem_read_data [DATA_MEM_NUM_CHANNELS],
     output wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_write_valid,
     output data_memory_address_t data_mem_write_address [DATA_MEM_NUM_CHANNELS],
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
-    input wire [DATA_MEM_NUM_CHANNELS-1:0] data_mem_write_ready
+    input logic data_mem_write_ready
 );
 
 kernel_config_t kernel_config_reg;
