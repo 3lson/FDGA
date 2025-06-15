@@ -17,5 +17,5 @@ def hex_to_coe(hex_path, coe_path, radix=16):
     print(f"Converted {hex_path} to {coe_path}")
 
 # Example usage:
-hex_to_coe("assembler/vivado.hex", "instr.coe")  # for instruction BRAM
-hex_to_coe("assembler/data_vivado.hex", "data.coe")      # for data BRAM
+hex_to_coe("tb/test/tmp_test/vivado_iscalar.hex", "instr.coe")  # for instruction BRAM
+hex_to_coe("tb/test/tmp_test/data_vivado_iscalar.hex", "data.coe")      # for data BRAM

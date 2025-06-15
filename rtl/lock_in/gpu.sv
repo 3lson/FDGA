@@ -1,7 +1,7 @@
 `default_nettype none
 `timescale 1ns/1ns
 
-`include "common.sv"
+`include "common.svh"
 `include "gpu_defines.svh"
 
 module gpu #(
@@ -9,9 +9,11 @@ module gpu #(
     parameter int INSTRUCTION_MEM_NUM_CHANNELS = 1,
     parameter int NUM_CORES = 1,
     parameter int WARPS_PER_CORE = 1,
-    parameter int THREADS_PER_WARP = 16
+    parameter int THREADS_PER_WARP = 16,
+    parameter C_M_AXI_ADDR_WIDTH = 32, // Add AXI parameters
+    parameter C_M_AXI_DATA_WIDTH = 32,
+    parameter int C_M_AXI_ID_WIDTH   = 1
 ) (
-    // ... ports are unchanged ...
     input wire clk,
     input wire reset,
     input logic [31:0] base_instr,
@@ -31,7 +33,43 @@ module gpu #(
     output logic data_mem_write_valid,
     output data_memory_address_t data_mem_write_address [DATA_MEM_NUM_CHANNELS],
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
-    input logic data_mem_write_ready
+    input logic data_mem_write_ready,
+
+  // --- NEW: AXI4 Master Interface for Data Memory ---
+    // Write Address Channel
+    output logic [C_M_AXI_ID_WIDTH-1:0]     m_axi_awid,
+    output logic [C_M_AXI_ADDR_WIDTH-1:0]   m_axi_awaddr,
+    output logic [7:0]                      m_axi_awlen,
+    output logic [2:0]                      m_axi_awsize,
+    output logic [1:0]                      m_axi_awburst,
+    output logic                           m_axi_awvalid,
+    input  logic                           m_axi_awready,
+    // Write Data Channel
+    output logic [C_M_AXI_DATA_WIDTH-1:0]   m_axi_wdata,
+    output logic [C_M_AXI_DATA_WIDTH/8-1:0] m_axi_wstrb,
+    output logic                           m_axi_wlast,
+    output logic                           m_axi_wvalid,
+    input  logic                           m_axi_wready,
+    // Write Response Channel
+    input  logic [C_M_AXI_ID_WIDTH-1:0]      m_axi_bid,
+    input  logic [1:0]                       m_axi_bresp,
+    input  logic                             m_axi_bvalid,
+    output logic                             m_axi_bready,
+    // Read Address Channel
+    output logic [C_M_AXI_ID_WIDTH-1:0]     m_axi_arid,
+    output logic [C_M_AXI_ADDR_WIDTH-1:0]   m_axi_araddr,
+    output logic [7:0]                      m_axi_arlen,
+    output logic [2:0]                      m_axi_arsize,
+    output logic [1:0]                      m_axi_arburst,
+    output logic                           m_axi_arvalid,
+    input  logic                           m_axi_arready,
+    // Read Data Channel
+    input  logic [C_M_AXI_ID_WIDTH-1:0]      m_axi_rid,
+    input  logic [C_M_AXI_DATA_WIDTH-1:0]    m_axi_rdata,
+    input  logic [1:0]                       m_axi_rresp,
+    input  logic                             m_axi_rlast,
+    input  logic                             m_axi_rvalid,
+    output logic                             m_axi_rready
 );
     always_comb begin
         if (data_mem_write_valid && data_mem_write_address[0] == 168) begin
@@ -49,14 +87,14 @@ module gpu #(
     logic [NUM_CORES-1:0] core_reset;
     data_t core_block_id [NUM_CORES];
 
-    assign data_mem_write_address[0] = m_axi_awaddr;
-    assign data_mem_write_data[0]    = m_axi_wdata;
-    assign data_mem_write_valid      = m_axi_awvalid | m_axi_wvalid;
-    assign m_axi_bvalid_to_mcu       = data_mem_write_ready; 
-    assign data_mem_read_address[0]  = m_axi_araddr;
-    assign m_axi_rdata               = data_mem_read_data[0];
-    assign data_mem_read_valid       = m_axi_arvalid;
-    assign m_axi_rvalid_to_mcu       = data_mem_read_ready;
+    // assign data_mem_write_address[0] = m_axi_awaddr;
+    // assign data_mem_write_data[0]    = m_axi_wdata;
+    // assign data_mem_write_valid      = m_axi_awvalid | m_axi_wvalid;
+    // assign m_axi_bvalid_to_mcu       = data_mem_write_ready; 
+    // assign data_mem_read_address[0]  = m_axi_araddr;
+    // assign m_axi_rdata               = data_mem_read_data[0];
+    // assign data_mem_read_valid       = m_axi_arvalid;
+    // assign m_axi_rvalid_to_mcu       = data_mem_read_ready;
 
     always_ff @(posedge clk or posedge reset) begin
         if (reset) begin
@@ -90,36 +128,66 @@ module gpu #(
     data_t                        lsu_write_data [NUM_LSUS_PER_CORE];
     logic [NUM_LSUS_PER_CORE-1:0] lsu_write_ready;
     
-    logic [31:0] m_axi_awaddr, m_axi_araddr, m_axi_wdata, m_axi_rdata;
-    logic m_axi_awvalid, m_axi_wvalid, m_axi_arvalid;
-    logic m_axi_bvalid_to_mcu, m_axi_rvalid_to_mcu;
+    // logic [31:0] m_axi_awaddr, m_axi_araddr, m_axi_wdata, m_axi_rdata;
+    // logic m_axi_awvalid, m_axi_wvalid, m_axi_arvalid;
+    // logic m_axi_bvalid_to_mcu, m_axi_rvalid_to_mcu;
     
+     // The mcu now connects its AXI port directly to the gpu module's AXI port.
     mcu #(
-        .THREADS_PER_WARP(THREADS_PER_WARP)
+        .THREADS_PER_WARP(THREADS_PER_WARP),
+        .WARPS_PER_CORE(WARPS_PER_CORE), // Pass parameter through
+        .C_M_AXI_ADDR_WIDTH(C_M_AXI_ADDR_WIDTH), // Pass parameter through
+        .C_M_AXI_DATA_WIDTH(C_M_AXI_DATA_WIDTH), // Pass parameter through
+        .C_M_AXI_ID_WIDTH(C_M_AXI_ID_WIDTH)     // Pass parameter through
     ) mcu_inst (
         .clk(clk),
         .reset(reset),
+
+        // Core Control
         .core_reset(core_reset[0]),
         .core_start(core_start[0]),
         .core_done(core_done[0]),
-
         .block_id(core_block_id[0]),
         .kernel_config(kernel_config_reg),
+        .mcu_is_busy(), // This output is not used at this level
 
+        // Instruction Fetcher Interface
         .fetcher_read_valid_core(fetcher_read_valid_core),
         .fetcher_read_address_core(fetcher_read_address_core),
         .fetcher_read_ready_core(fetcher_read_ready_core),
         .fetcher_read_data_core(fetcher_read_data_core),
 
-        // AXI Master Data Interface (unchanged)
-        .m_axi_awaddr(m_axi_awaddr), .m_axi_awvalid(m_axi_awvalid), .m_axi_awready(data_mem_write_ready),
-        .m_axi_wdata(m_axi_wdata), .m_axi_wvalid(m_axi_wvalid), .m_axi_wready(data_mem_write_ready),
-        .m_axi_bvalid(m_axi_bvalid_to_mcu), .m_axi_araddr(m_axi_araddr), .m_axi_arvalid(m_axi_arvalid),
-        .m_axi_arready(data_mem_read_ready), .m_axi_rdata(m_axi_rdata), .m_axi_rvalid(m_axi_rvalid_to_mcu)
+        // AXI Master Data Interface (Direct pass-through)
+        .m_axi_awid(m_axi_awid),
+        .m_axi_awaddr(m_axi_awaddr),
+        .m_axi_awlen(m_axi_awlen),
+        .m_axi_awsize(m_axi_awsize),
+        .m_axi_awburst(m_axi_awburst),
+        .m_axi_awvalid(m_axi_awvalid),
+        .m_axi_awready(m_axi_awready),
+        .m_axi_wdata(m_axi_wdata),
+        .m_axi_wstrb(m_axi_wstrb),
+        .m_axi_wlast(m_axi_wlast),
+        .m_axi_wvalid(m_axi_wvalid),
+        .m_axi_wready(m_axi_wready),
+        .m_axi_bid(m_axi_bid),
+        .m_axi_bresp(m_axi_bresp),
+        .m_axi_bvalid(m_axi_bvalid),
+        .m_axi_bready(m_axi_bready),
+        .m_axi_arid(m_axi_arid),
+        .m_axi_araddr(m_axi_araddr),
+        .m_axi_arlen(m_axi_arlen),
+        .m_axi_arsize(m_axi_arsize),
+        .m_axi_arburst(m_axi_arburst),
+        .m_axi_arvalid(m_axi_arvalid),
+        .m_axi_arready(m_axi_arready),
+        .m_axi_rid(m_axi_rid),
+        .m_axi_rdata(m_axi_rdata),
+        .m_axi_rresp(m_axi_rresp),
+        .m_axi_rlast(m_axi_rlast),
+        .m_axi_rvalid(m_axi_rvalid),
+        .m_axi_rready(m_axi_rready)
     );
-
-    // Simplified connection logic from MCU to top-level memory ports (unchanged)
-    
 
     // --- Core Instantiation ---
     logic [WARPS_PER_CORE-1:0] fetcher_read_valid_core;
