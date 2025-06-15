@@ -57,6 +57,7 @@ E.g.
 | `muli` | 0010 | rd = rs1 * imm |
 | `divi` | 0011 | rd = rs1 / imm |
 | `slli` | 1010 | rd = rs1 << uimm (shift left logical immediate) | 
+| `seqi` | 1011 | rd = (rs1 == imm) ? 1 : 0 | 
 
 **Note:** `uimm` means 5-bit unsigned immediate (i.e `IMM[4:0]`)
 
@@ -104,11 +105,12 @@ E.g.
 | -------| -------- | ------ |---- |------- | ------ | ------- |
 | opcode | imm[17:8] |rs2(x0)| imm[7] | funct3 = 001 | rs1 | imm[6:2] |
 
-**call** `call rd, imm(rs1)`
+**branch** `beqo rd, label`
+**Note:** The label will be calculated in assembler to give the relative PC offset addressing
 
-| [31:29] | [28:13] | [12:10] | [9:5] | [4:0]
-| -------| -------- | ------- | ------ | ------ |
-| opcode | imm[17:2] | funct3 = 010 | rs1 | rd|
+| [31:29] | [28:19] | [18:14] | [13] | [12:10] | [9:5] | [4:0] |
+| -------| -------- | ------ |---- |------- | ------ | ------- |
+| opcode | imm[17:8] |rs2(x0)| imm[7] | funct3 = 010 | rs1 | imm[6:2] |
 
 **ret** `ret`
 
@@ -120,7 +122,13 @@ E.g.
 
 | [31:29] | [28:13] | [12:10] | [9:0]
 | -------| -------- | ------- | ------ |
-| opcode | 16(x) | funct3 = 110 | 10(x) |
+| opcode | 16(x) | funct3 = 100 | 10(x) |
+
+**endsync** 
+
+| [31:29] | [28:13] | [12:10] | [9:0]
+| -------| -------- | ------- | ------ |
+| opcode | 16(x) | funct3 = 101 | 10(x) |
 
 **exit** 
 

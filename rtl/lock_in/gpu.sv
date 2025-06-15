@@ -33,6 +33,11 @@ module gpu #(
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
     input logic data_mem_write_ready
 );
+    // always_comb begin
+    //     if (data_mem_write_valid && data_mem_write_address[0] == 0) begin
+    //         $display("Time %0t: Writing to data memory address 168, data = %h", $time, data_mem_write_data[0]);
+    //     end
+    // end
     // initial begin
     //     $display("data_mem_read_ready: ", data_mem_read_ready);
     // end
@@ -94,16 +99,17 @@ module gpu #(
     ) mcu_inst (
         .clk(clk),
         .reset(reset),
+        .core_reset(core_reset[0]),
+        .core_start(core_start[0]),
+        .core_done(core_done[0]),
 
-        // Connect the consumer array ports to the LSU wires
-        .consumer_read_valid     (lsu_read_valid),
-        .consumer_read_address   (lsu_read_address),
-        .consumer_read_ready     (lsu_read_ready),
-        .consumer_read_data      (lsu_read_data),
-        .consumer_write_valid    (lsu_write_valid),
-        .consumer_write_address  (lsu_write_address),
-        .consumer_write_data     (lsu_write_data),
-        .consumer_write_ready    (lsu_write_ready),
+        .block_id(core_block_id[0]),
+        .kernel_config(kernel_config_reg),
+
+        .fetcher_read_valid_core(fetcher_read_valid_core),
+        .fetcher_read_address_core(fetcher_read_address_core),
+        .fetcher_read_ready_core(fetcher_read_ready_core),
+        .fetcher_read_data_core(fetcher_read_data_core),
 
         // AXI Master Data Interface (unchanged)
         .m_axi_awaddr(m_axi_awaddr), .m_axi_awvalid(m_axi_awvalid), .m_axi_awready(data_mem_write_ready),
@@ -126,38 +132,38 @@ module gpu #(
     assign fetcher_read_ready_core = instruction_mem_read_ready;
     assign fetcher_read_data_core = instruction_mem_read_data;
 
-    always_comb begin 
-        $display("lsu_read_data in gpu: ", lsu_read_data[16]);
-        $display("lsu_read address in gpu: ", lsu_read_address[THREADS_PER_WARP]);
-        $display("lsu_write_data in gpu [16]: ", lsu_write_data[16]);
-        $display("lsu write address in gpu [16]: ", lsu_write_address[THREADS_PER_WARP]);
-    end
-    compute_core #(
-        .WARPS_PER_CORE(WARPS_PER_CORE),
-        .THREADS_PER_WARP(THREADS_PER_WARP)
-    ) core_instance (
-        .clk(clk),
-        .reset(core_reset[0]),
-        .start(core_start[0]),
-        .done(core_done[0]),
-        .block_id(core_block_id[0]),
-        .kernel_config(kernel_config_reg),
+    // always_comb begin 
+    //     $display("lsu_read_data in gpu: ", lsu_read_data[16]);
+    //     $display("lsu_read address in gpu: ", lsu_read_address[THREADS_PER_WARP]);
+    //     $display("lsu_write_data in gpu [16]: ", lsu_write_data);
+    //     $display("lsu write address in gpu [16]: ", lsu_write_address);
+    // end
+    // compute_core #(
+    //     .WARPS_PER_CORE(WARPS_PER_CORE),
+    //     .THREADS_PER_WARP(THREADS_PER_WARP)
+    // ) core_instance (
+    //     .clk(clk),
+    //     .reset(core_reset[0]),
+    //     .start(core_start[0]),
+    //     .done(core_done[0]),
+    //     .block_id(core_block_id[0]),
+    //     .kernel_config(kernel_config_reg),
 
-        .instruction_mem_read_valid(fetcher_read_valid_core),
-        .instruction_mem_read_address(fetcher_read_address_core),
-        .instruction_mem_read_ready(fetcher_read_ready_core),
-        .instruction_mem_read_data(fetcher_read_data_core),
+    //     .instruction_mem_read_valid(fetcher_read_valid_core),
+    //     .instruction_mem_read_address(fetcher_read_address_core),
+    //     .instruction_mem_read_ready(fetcher_read_ready_core),
+    //     .instruction_mem_read_data(fetcher_read_data_core),
 
-        // Core connects to the LSU signals
-        .data_mem_read_valid(lsu_read_valid),
-        .data_mem_read_address(lsu_read_address),
-        .data_mem_read_ready(lsu_read_ready),
-        .data_mem_read_data(lsu_read_data),
-        .data_mem_write_valid(lsu_write_valid),
-        .data_mem_write_address(lsu_write_address),
-        .data_mem_write_data(lsu_write_data),
-        .data_mem_write_ready(lsu_write_ready)
+    //     // Core connects to the LSU signals
+    //     .data_mem_read_valid(lsu_read_valid),
+    //     .data_mem_read_address(lsu_read_address),
+    //     .data_mem_read_ready(lsu_read_ready),
+    //     .data_mem_read_data(lsu_read_data),
+    //     .data_mem_write_valid(lsu_write_valid),
+    //     .data_mem_write_address(lsu_write_address),
+    //     .data_mem_write_data(lsu_write_data),
+    //     .data_mem_write_ready(lsu_write_ready)
 
-    );
+    // );
     
 endmodule

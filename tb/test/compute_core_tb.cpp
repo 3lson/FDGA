@@ -450,38 +450,6 @@ TEST_F(ComputeCoreTestbench, MScalarTest) {
 //     EXPECT_EQ(data_mem[53], 1) << "Vector FCVT.W.S (float to int) failed";
 // }
 
-// TEST_F(ComputeCoreTestbench, SXSltTest) {
-//     // This test verifies the sx.slt (vector-to-scalar mask generation) instruction.
-//     // Assembly under test:
-//     //   v.add v1, x29, zero   // v1 = thread IDs
-//     //   v.li v2, 8            // v2 = 8
-//     //   sx.slt s1, v1, v2     // s1 = (v1 < v2) ? 1 : 0 for each thread
-//     //   s.li s10, 42          // s10 = 42
-//     //   s.sw s1, 0(s10)       // mem[42] = s1
-//     //   exit
-
-//     // 1. Clear data memory from any previous tests
-//     data_mem.clear();
-
-//     // 2. Load the assembled program from its hex file
-//     loadProgramFromHex("test/tmp_test/sx_slt_test.hex");
-
-// //     // 3. Run the simulation
-//     loadAndRun(instr_mem);
-
-//     // 4. Verify the result
-//     // The condition is `thread_id < 8`.
-//     // This should be true for threads 0, 1, 2, 3, 4, 5, 6, 7.
-//     // The resulting mask in register s1 should have the lower 8 bits set.
-//     // Expected mask = 0b11111111 = 0xFF.
-//     uint32_t expected_mask = 0xFF;
-    
-//     // The program stores this mask at memory address 42.
-//     // Check if the memory location contains the correct mask value.
-//     ASSERT_TRUE(data_mem.count(42)) << "The test program did not write to the expected memory location (42).";
-//     EXPECT_EQ(data_mem[42], expected_mask) << "sx.slt failed to generate the correct scalar mask.";
-// }
-
 // TEST_F(ComputeCoreTestbench, SyncInstructionTest) {
 //     // This test verifies that the 'sync' instruction correctly stalls warps
 //     // until all active warps in a block have reached the barrier.
@@ -516,6 +484,32 @@ TEST_F(ComputeCoreTestbench, MScalarTest) {
 //     ASSERT_TRUE(data_mem.count(50)) << "Consumer (Warp 1) failed to write its verification value.";
 //     EXPECT_EQ(data_mem[50], 123) << "Sync barrier failed: Consumer read from memory before the producer wrote to it.";
 // }
+
+// TEST_F(ComputeCoreTestbench, SXSLTTest) {
+//     data_mem.clear();
+
+//     loadProgramFromHex("test/tmp_test/sx_slt.hex");
+
+//     loadDataFromHex("test/tmp_test/data_sx_slt.hex"); // This will load data starting at 0x1000
+
+//     loadAndRun(instr_mem);
+
+//     EXPECT_FLOAT_EQ(data_mem[42], 0xFFFF) << "SX.SLT failed";
+// }
+
+// TEST_F(ComputeCoreTestbench, SXSLTTest_0) {
+//     data_mem.clear();
+
+//     loadProgramFromHex("test/tmp_test/sx_slt_0.hex");
+
+//     loadDataFromHex("test/tmp_test/data_sx_slt_0.hex"); // This will load data starting at 0x1000
+
+//     loadAndRun(instr_mem);
+
+//     EXPECT_FLOAT_EQ(data_mem[42], 0) << "SX.SLT.0 failed";
+// }
+
+
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);

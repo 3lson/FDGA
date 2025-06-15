@@ -17,8 +17,10 @@
 #define MULI        11
 #define DIVI        12
 #define SLLI        13
+#define SEQI        27
 #define BEQZ        25
 #define JAL        26
+#define BEQ0        28
 
 // Base class for testing the sequential ALU
 class ALUTestbench : public BaseTestbench {
@@ -157,6 +159,18 @@ TEST_F(ALUTestbench, SLLI_Test) {
     EXPECT_EQ(top->Result, 0x000000F0);
 }
 
+TEST_F(ALUTestbench, SEQI_Test_True) {
+    resetDUT();
+    int32_t op1 = 4;
+    int32_t imm = 4;
+
+    // For an I-type instruction, op2 is ignored.
+    // Pass the immediate value in the 'imm' parameter.
+    run_operation(SEQI, op1, 0, imm); // Correct usage
+
+    EXPECT_EQ(top->Result, 1);
+}
+
 TEST_F(ALUTestbench, BEQZ_ConditionTrue) {
     resetDUT();
     int32_t op1_is_zero = 0;
@@ -184,4 +198,22 @@ TEST_F(ALUTestbench, JumpTest) {
     run_operation(JAL, 0, 0, offset, current_pc);
     
     EXPECT_EQ(top->Result, current_pc + offset);
+}
+
+TEST_F(ALUTestbench, BEQ0_ConditionTrue) {
+    resetDUT();
+    int32_t op1_is_zero = 1;
+    // For BEQZ, op1 is rs1, op2 is not used.
+    // The ALU checks if op1 is zero and sets the EQ flag.
+    run_operation(BEQ0, op1_is_zero, 1);
+
+    EXPECT_EQ(top->Result, 1) << "Result should be 1 when condition is true";
+}
+
+TEST_F(ALUTestbench, BEQ0_ConditionFalse) {
+    resetDUT();
+    int32_t op1_not_zero = 0;
+    run_operation(BEQ0, op1_not_zero, 1);
+
+    EXPECT_EQ(top->Result, 0) << "Result should be 0 when condition is false";
 }

@@ -49,16 +49,16 @@ always_comb begin
         rs2 = (decoded_rs2_address == ZERO_REG) ? {DATA_WIDTH{1'b0}} : registers[decoded_rs2_address];
     end
 end
-always_comb begin
-    // $display("RS1, RS2 from scalar_reg ", rs1, rs2);
-    $display("Check vivado_iscalar.asm");
-    $display("Check s1: ", registers[6]);
-    $display("Check s2: ", registers[7]);
-    $display("Check s3: ", registers[8]);
-    $display("Check s4: ", registers[9]);
-    $display("Check s5: ", registers[10]);
-    $display("Check s6: ", registers[11]);
-end
+// always_comb begin
+//     // $display("RS1, RS2 from scalar_reg ", rs1, rs2);
+//     $display("Check vivado_iscalar.asm");
+//     $display("Check s1: ", registers[6]);
+//     $display("Check s2: ", registers[7]);
+//     $display("Check s3: ", registers[8]);
+//     $display("Check s4: ", registers[9]);
+//     $display("Check s5: ", registers[10]);
+//     $display("Check s6: ", registers[11]);
+// end
 
 // Register file: each warp has its own set of 32 registers
 

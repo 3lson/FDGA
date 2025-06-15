@@ -119,7 +119,7 @@ protected:
         }
         std::cout << "Loaded " << instruction_memory.size() << " instructions." << std::endl;
     }
-    void runAndComplete(int timeout_cycles = 50) {
+    void runAndComplete(int timeout_cycles = 100) {
         // Set kernel config
         top->data_mem_read_ready = 1;
         top->data_mem_write_ready = 1;
@@ -154,7 +154,7 @@ protected:
 TEST_F(GpuTestbench, MCU_ScalarWriteIntegration) {
     // 1. Load the assembled program.
     // Assembly: s.li s1, 32; s.li s2, 42; s.sw s1, 0(s2); exit
-    loadProgramFromHex("test/tmp_test/vivado_iscalar.hex");
+    loadProgramFromHex("test/tmp_test/mcu.hex");
 
     // 2. Clear data memory
     data_memory.clear();

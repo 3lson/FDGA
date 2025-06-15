@@ -24,8 +24,7 @@ module decoder(
 
     output  reg                 decoded_halt,
     output  reg [1:0]           floatingRead,
-    output  reg                 floatingWrite,
-    output  reg                 decoded_sync
+    output  reg                 floatingWrite
 );
     // Extract fields from instruction
     wire [2:0]   opcode     = instruction[31:29];
@@ -61,7 +60,6 @@ module decoder(
             decoded_scalar_instruction <= 0;
             floatingRead <= 2'b00;
             floatingWrite <= 1'b0;
-            decoded_sync    <= 0;
         end else if (warp_state == WARP_DECODE) begin
             // Default assignments for new decode
             decoded_reg_write_enable <= 0;
@@ -77,7 +75,6 @@ module decoder(
             decoded_scalar_instruction <= 0;
             floatingRead <= 2'b00;
             floatingWrite <= 1'b0;
-            decoded_sync <= 0;
 
             if (opcode == `OPCODE_J) begin
                 decoded_mem_read_enable     <= 0;
@@ -106,12 +103,6 @@ module decoder(
                         decoded_immediate           <= sign_extend_16(imm_b);
                         decoded_branch              <= 1;
                         decoded_alu_instruction     <= BEQO;
-                        decoded_scalar_instruction  <= 1;
-                    end
-                    3'b110: begin
-                        // Sync instruction
-                        decoded_sync                <= 1;
-                        decoded_alu_instruction     <= SYNC;
                         decoded_scalar_instruction  <= 1;
                     end
                     3'b111: begin
@@ -177,6 +168,7 @@ module decoder(
                             4'b0010: decoded_alu_instruction <= MULI;
                             4'b0011: decoded_alu_instruction <= DIVI;
                             4'b1010: decoded_alu_instruction <= SLLI;
+                            4'b1011: decoded_alu_instruction <= SEQI;
                             4'b1011: decoded_alu_instruction <= SEQI;
                             default: $error("Invalid I-type instruction with funct4 %b", funct4);
                         endcase

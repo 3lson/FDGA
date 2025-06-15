@@ -84,6 +84,8 @@ typedef enum logic [4:0] {
 
     // jump instructions
     JAL, // 11010
+
+    // special
     SEQI, // 11011
     BEQO, // 11100
     SYNC, // 11101
