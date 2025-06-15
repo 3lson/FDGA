@@ -172,7 +172,6 @@ always @(posedge clk) begin
         done <= 0;
         for (int i = 0; i < WARPS_PER_CORE; i = i + 1) begin
             warp_state[i] <= WARP_IDLE;
-            fetcher_state[i] <= FETCHER_IDLE;
             pc[i] <= 0;
             next_pc[i] <= 0;
             current_warp <= 0;
@@ -192,7 +191,6 @@ always @(posedge clk) begin
             current_warp <= 0;
             for (int i = 0; i < num_warps; i = i + 1) begin
                 warp_state[i] = WARP_FETCH;
-                fetcher_state[i] = FETCHER_IDLE;
                 pc[i] = kernel_config.base_instructions_address;
                 next_pc[i] = kernel_config.base_instructions_address;
             end
