@@ -33,11 +33,11 @@ module gpu #(
     output data_t data_mem_write_data [DATA_MEM_NUM_CHANNELS],
     input logic data_mem_write_ready
 );
-    // always_comb begin
-    //     if (data_mem_write_valid && data_mem_write_address[0] == 0) begin
-    //         $display("Time %0t: Writing to data memory address 168, data = %h", $time, data_mem_write_data[0]);
-    //     end
-    // end
+    always_comb begin
+        if (data_mem_write_valid && data_mem_write_address[0] == 168) begin
+            $display("Time %0t: Writing to data memory address 168, data = %h", $time, data_mem_write_data[0]);
+        end
+    end
     // initial begin
     //     $display("data_mem_read_ready: ", data_mem_read_ready);
     // end

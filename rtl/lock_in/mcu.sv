@@ -225,7 +225,6 @@ endfunction
                 // $display("m_axi_awready: ", m_axi_awready);
                 if (req_is_write[burst_start_idx]) begin
                     m_axi_awvalid = 1'b1; 
-                    m_axi_awaddr = byte_addr; 
                     m_axi_awlen = burst_len_count - 1;
                     if (m_axi_awready) begin
                         $display("MCU: ISSUE_ADDR_CMD -> WRITE_DATA_BURST");
@@ -248,6 +247,14 @@ endfunction
                 // $display("m_axi_wdata: ", m_axi_wdata);
                 // $display("burst_len_count: ", burst_len_count);
                 // $display("burst_data_counter: ", burst_data_counter);
+                data_memory_address_t byte_addr = req_addr[burst_start_idx] * BYTES_PER_WORD;
+                $display("m_axi_awaddr: ", m_axi_awaddr);
+                // for (int i = 0; i <= THREADS_PER_WARP; i = i + 1) begin 
+                //     $display("req_wdata: %d i = %d", req_wdata, i);
+                //     $display("burst_start_idx: ", burst_start_idx);
+                //     $display("burst_data_counter: ", burst_data_counter);
+                // end
+                m_axi_awaddr = byte_addr; 
                 m_axi_wvalid = 1'b1; m_axi_wdata = req_wdata[burst_start_idx + burst_data_counter];
                 m_axi_wlast = (burst_data_counter == burst_len_count - 1);
                 if (m_axi_wready) begin
