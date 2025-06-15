@@ -351,7 +351,7 @@ always @(posedge clk) begin
                 $display("===================================");
                 $display("Mask: %32b", warp_execution_mask[current_warp]);
                 $display("Block: %0d: Warp %0d: Executing instruction %h at address %h", block_id, current_warp, fetched_instruction[current_warp], pc[current_warp]);
-                $display("Instruction opcode: %b", fetched_instruction[current_warp][31:29]);
+                // $display("Instruction opcode: %b", fetched_instruction[current_warp][31:29]);
                 $display("Block: %0d: Warp %0d: Executing instruction %h", block_id, current_warp, fetched_instruction[current_warp]);
             
                 if (decoded_scalar_instruction[current_warp]) begin
@@ -666,8 +666,9 @@ always_comb begin
     // $display("data_mem_write_valid: ", data_mem_write_valid[THREADS_PER_WARP]);
 
 end
-
-
+// always_comb begin
+//     $display("data_mem_write_data[THREADS_PER_WARP]: ", data_mem_write_data[16]);
+// end
 lsu scalar_lsu_inst(
     .clk(clk),
     .reset(reset),

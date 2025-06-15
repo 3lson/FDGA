@@ -168,6 +168,7 @@ module decoder(
                             4'b0011: decoded_alu_instruction <= DIVI;
                             4'b1010: decoded_alu_instruction <= SLLI;
                             4'b1011: decoded_alu_instruction <= SEQI;
+                            4'b1011: decoded_alu_instruction <= SEQI;
                             default: $error("Invalid I-type instruction with funct4 %b", funct4);
                         endcase
                     end

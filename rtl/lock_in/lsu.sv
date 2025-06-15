@@ -122,8 +122,8 @@ always @(posedge clk) begin
                     $display("State Write LSU Request: ", lsu_state);
                 end
                 LSU_WAITING: begin
-                    $display("mem_write_valid: ",mem_write_valid);
-                    $display("mem_write_ready: ", mem_write_ready);
+                    // $display("mem_write_valid: ",mem_write_valid);
+                    // $display("mem_write_ready: ", mem_write_ready);
                     if (mem_write_ready) begin
                         mem_write_valid <= 0;
                         lsu_state <= LSU_DONE;

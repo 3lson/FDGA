@@ -8,19 +8,24 @@ module mcu #(
     parameter THREADS_PER_WARP = 16,
     parameter C_M_AXI_ADDR_WIDTH = 32,
     parameter C_M_AXI_DATA_WIDTH = 32,
-    parameter C_M_AXI_ID_WIDTH   = 1
+    parameter C_M_AXI_ID_WIDTH   = 1,
+    parameter WARPS_PER_CORE = 1
 ) (
     input wire clk,
     input wire reset,
-    
-    input  logic [THREADS_PER_WARP:0] consumer_read_valid,
-    input  data_memory_address_t consumer_read_address [THREADS_PER_WARP:0],
-    output logic [THREADS_PER_WARP:0] consumer_read_ready,
-    output data_t consumer_read_data [THREADS_PER_WARP:0],
-    input  logic [THREADS_PER_WARP:0] consumer_write_valid,
-    input  data_memory_address_t consumer_write_address [THREADS_PER_WARP:0],
-    input  data_t consumer_write_data [THREADS_PER_WARP:0],
-    output logic [THREADS_PER_WARP:0] consumer_write_ready,
+
+    // inputs for compute_core
+    input wire core_reset,
+    input logic core_start,
+    output  logic core_done,
+
+    input   data_t                          block_id,
+    input   kernel_config_t                 kernel_config,
+
+    input   logic   [WARPS_PER_CORE-1:0]    fetcher_read_ready_core,
+    input   instruction_t                   fetcher_read_data_core       [WARPS_PER_CORE],
+    output  logic   [WARPS_PER_CORE-1:0]    fetcher_read_valid_core,
+    output  instruction_memory_address_t    fetcher_read_address_core    [WARPS_PER_CORE],
     
     output logic mcu_is_busy,
     // --- AXI Ports ---
@@ -54,6 +59,17 @@ module mcu #(
     input  logic                             m_axi_rvalid,
     output logic                             m_axi_rready
 );
+
+localparam int thread_length = THREADS_PER_WARP+1;
+
+logic [THREADS_PER_WARP:0] consumer_read_valid;
+data_memory_address_t consumer_read_address [thread_length];
+logic [THREADS_PER_WARP:0] consumer_read_ready;
+data_t consumer_read_data [thread_length];
+logic [THREADS_PER_WARP:0] consumer_write_valid;
+data_memory_address_t consumer_write_address [thread_length];
+data_t consumer_write_data [thread_length];
+logic [THREADS_PER_WARP:0] consumer_write_ready;
 
 // This function is for combinational prediction, which is a good optimisation
 function logic calc_remaining_requests(
@@ -160,29 +176,33 @@ endfunction
                 next_state = PROCESS_SCALAR;
             end
 
-            PROCESS_SCALAR:
+            PROCESS_SCALAR: begin
+                // for (int i = 0; i <= SCALAR_LSU_IDX; i = i + 1) begin 
+                //     $display("req_valid: %d i: %d", req_valid[i], i);
+                // end
                 if (req_valid[SCALAR_LSU_IDX]) begin
                     $display("MCU: PROCESS_SCALAR -> ISSUE_ADDR_CMD");
                     burst_start_idx = SCALAR_LSU_IDX;
                     burst_len_count = 1;
                     next_state = ISSUE_ADDR_CMD;
                 end else if (|req_valid[THREADS_PER_WARP-1:0]) begin // Any vector requests?
+                    $display("are we crashing out chat");
                     $display("MCU: PROCESS_SCALAR -> COALESCE_PLAN");
                     next_state = COALESCE_PLAN;
                 end else begin
                     $display("MCU: PROCESS_SCALAR -> IDLE");
                     next_state = IDLE; // No requests at all
                 end
-
+            end
             COALESCE_PLAN: begin
                 logic found_burst;
                 found_burst = 1'b0;
                 burst_len_count = 1; // Default to burst of 1 for uncoalesced
-                for(int i=0; i<THREADS_PER_WARP; i++) begin
+                for(int i=0; i<=THREADS_PER_WARP; i++) begin
                     if(req_valid[i] && !found_burst) begin
                         found_burst = 1'b1;
                         burst_start_idx = i;
-                        for (int j = i + 1; j < THREADS_PER_WARP; j++) begin
+                        for (int j = i + 1; j <= THREADS_PER_WARP; j++) begin
                             if (req_valid[j] && (req_addr[j] == (req_addr[i] + (j-i)))) begin
                                 burst_len_count = burst_len_count + 1;
                             end else break;
@@ -196,12 +216,15 @@ endfunction
             ISSUE_ADDR_CMD: begin
                 // MCU addresses are WORD addresses, AXI needs BYTE addresses
                 data_memory_address_t byte_addr = req_addr[burst_start_idx] * BYTES_PER_WORD;
+                // for (int i = 0; i <= THREADS_PER_WARP; i = i + 1 ) begin 
+                //     $display("req_addr: ", req_addr[i]);
+                // end
                 // $display("burst_start_idx: ", burst_start_idx);
                 // $display("req_is_write[burst_start_idx]: ", req_is_write[burst_start_idx]);
+                // $display("byte_addr: ", byte_addr);
                 // $display("m_axi_awready: ", m_axi_awready);
                 if (req_is_write[burst_start_idx]) begin
                     m_axi_awvalid = 1'b1; 
-                    m_axi_awaddr = byte_addr; 
                     m_axi_awlen = burst_len_count - 1;
                     if (m_axi_awready) begin
                         $display("MCU: ISSUE_ADDR_CMD -> WRITE_DATA_BURST");
@@ -224,6 +247,14 @@ endfunction
                 // $display("m_axi_wdata: ", m_axi_wdata);
                 // $display("burst_len_count: ", burst_len_count);
                 // $display("burst_data_counter: ", burst_data_counter);
+                data_memory_address_t byte_addr = req_addr[burst_start_idx] * BYTES_PER_WORD;
+                $display("m_axi_awaddr: ", m_axi_awaddr);
+                // for (int i = 0; i <= THREADS_PER_WARP; i = i + 1) begin 
+                //     $display("req_wdata: %d i = %d", req_wdata, i);
+                //     $display("burst_start_idx: ", burst_start_idx);
+                //     $display("burst_data_counter: ", burst_data_counter);
+                // end
+                m_axi_awaddr = byte_addr; 
                 m_axi_wvalid = 1'b1; m_axi_wdata = req_wdata[burst_start_idx + burst_data_counter];
                 m_axi_wlast = (burst_data_counter == burst_len_count - 1);
                 if (m_axi_wready) begin
@@ -258,8 +289,8 @@ endfunction
             READ_DATA_BURST: begin
                 m_axi_rready = 1'b1;
                 if (m_axi_rvalid) begin
-                    $display("m_axi_rvalid: ", m_axi_rvalid);
-                    $display("m_axi_rlast: ", m_axi_rlast);
+                    // $display("m_axi_rvalid: ", m_axi_rvalid);
+                    // $display("m_axi_rlast: ", m_axi_rlast);
                     // Data and Ready are driven in the always_ff block
                     if (m_axi_rlast) begin
                         if (calc_remaining_requests(req_valid, burst_start_idx, burst_len_count)) begin
@@ -278,8 +309,8 @@ endfunction
 
     // --- Sequential Logic ---
     always_ff @(posedge clk or posedge reset) begin
-        $display("state: ", state);
-        $display("next state: ", next_state);
+        // $display("state: ", state);
+        // $display("next state: ", next_state);
         if (reset) begin
             state <= IDLE;
             req_valid <= '0;
@@ -288,21 +319,29 @@ endfunction
             //transaction_started <= 1'b0;
         end else begin
             state <= next_state;
-            $display("where did [16] go: ", consumer_write_valid[16]);
-
             // Latch inputs only when in the BUFFER_REQS state
             if (state == IDLE && next_state == BUFFER_REQS) begin
-                req_valid <= consumer_read_valid | consumer_write_valid;
+                $display("where did [16] go: ", consumer_write_valid[16]);
+                req_valid <= consumer_write_valid | consumer_read_valid;
+                req_is_write  <= consumer_write_valid;
+                // $display("consumer_write_valid: ",consumer_write_valid);
+                // $display("consumer_read_valid: ",consumer_read_valid);
+                // $display("consumer_write_data: ",consumer_write_data);
+                // $display("consumer_write_address: ",consumer_write_address);
+                // $display("req_valid: ",  consumer_write_valid | consumer_read_valid);
                 for (int i=0; i<=THREADS_PER_WARP; i++) begin
-                    $display("consumer_write_valid: ", consumer_write_valid[i]);
-                    $display("consumer_write_address: ", consumer_write_address[i]);
-                    $display("consumer_write_data: ", consumer_write_data[i]);
-                    req_is_write[i]  <= consumer_write_valid[i];
+                    // $display("consumer_write_valid[i]: ", consumer_write_valid[i]);
+                    // $display("consumer_write_address[i]: ", consumer_write_address[i]);
+                    // $display("consumer_write_data[i]: ", consumer_write_data[i]);
+                    // req_is_write  <= consumer_write_valid;
                     req_addr[i]      <= consumer_write_valid[i] ? consumer_write_address[i] : consumer_read_address[i];
                     req_wdata[i]     <= consumer_write_data[i];
-                    $display("req_is_write: ", req_is_write[i]);
-                    $display("req_addr: ", req_addr[i]);
-                    $display("req_wdata: ", req_wdata[i]);
+                    $display("Reg: ", i);
+                    $display("consumer_write_data[i]: ",consumer_write_data[i]);
+                    $display("consumer_write_address[i]: ",consumer_write_address[i]);
+                    // $display("req_is_write: ", req_is_write[i]);
+                    // $display("req_addr: ", req_addr[i]);
+                    // $display("req_wdata: ", req_wdata[i]);
                 end
             end
 
@@ -328,5 +367,33 @@ endfunction
             end
         end
     end
+
+    compute_core #(
+        .WARPS_PER_CORE(WARPS_PER_CORE),
+        .THREADS_PER_WARP(THREADS_PER_WARP)
+    ) core_instance (
+        .clk(clk),
+        .reset(core_reset),
+        .start(core_start),
+        .done(core_done),
+        .block_id(block_id),
+        .kernel_config(kernel_config),
+
+        .instruction_mem_read_valid(fetcher_read_valid_core),
+        .instruction_mem_read_address(fetcher_read_address_core),
+        .instruction_mem_read_ready(fetcher_read_ready_core),
+        .instruction_mem_read_data(fetcher_read_data_core),
+
+        // Core connects to the LSU signals
+        .data_mem_read_valid(consumer_read_valid),
+        .data_mem_read_address(consumer_read_address),
+        .data_mem_read_ready(consumer_read_ready),
+        .data_mem_read_data(consumer_read_data),
+        .data_mem_write_valid(consumer_write_valid),
+        .data_mem_write_address(consumer_write_address),
+        .data_mem_write_data(consumer_write_data),
+        .data_mem_write_ready(consumer_write_ready)
+
+    );
 
 endmodule
